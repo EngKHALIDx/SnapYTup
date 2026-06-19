@@ -1,27 +1,33 @@
-# Codemagic configuration for SnapYT
+# Codemagic configuration for MediaGrab (Snaptube-style downloader)
 # https://docs.codemagic.io/yaml/yaml-getting-started/
 
 definitions:
   environment: &android_environment
-    JAVA_HOME: /Users/builder/.jabba/jdk/17.0.13+11
     vars:
       PACKAGE_NAME: "com.gokei.yt_download"
   scripts:
-    - &set_up_pubspec
-      name: Set up local pubspec
+    - &set_up
+      name: Set up Flutter
       script: |
         cd $CM_BUILD_DIR
-    - &flutter_analyze
+        flutter --version
+    - &pub_get
+      name: Flutter pub get
+      script: |
+        cd $CM_BUILD_DIR
+        flutter pub get
+    - &analyze
       name: Flutter analyze
       script: |
         cd $CM_BUILD_DIR
         flutter analyze --no-fatal-infos
-    - &flutter_test
+      failure: continue
+    - &test
       name: Flutter test
       script: |
         cd $CM_BUILD_DIR
         flutter test
-      failure: continue  # don't block the build if a test fails
+      failure: continue
     - &build_apk
       name: Build Android APK
       script: |
@@ -31,13 +37,11 @@ definitions:
 
 workflows:
   android-workflow:
-    name: SnapYT Android
+    name: MediaGrab Android
     instance_type: mac_mini_m2
     max_build_duration: 60
     environment:
       <<: *android_environment
-      groups:
-        - google_play  # (optional) if you plan to publish
     triggering:
       events:
         - push
@@ -46,9 +50,10 @@ workflows:
           include: source
       cancel_previous_builds: true
     scripts:
-      - *set_up_pubspec
-      - *flutter_analyze
-      - *flutter_test
+      - *set_up
+      - *pub_get
+      - *analyze
+      - *test
       - *build_apk
     artifacts:
       - build/**/outputs/**/*.apk
