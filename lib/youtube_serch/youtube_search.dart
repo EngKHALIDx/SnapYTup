@@ -3,7 +3,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:klutter_platfrom_verify/klutter_platfrom_verify.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
@@ -414,7 +413,7 @@ class YoutubeSearchState extends State<YoutubeSearch> {
                     Navigator.of(context).push(MaterialPageRoute(
                         builder: (builder) => VideoDownloaderScreen()));
                   },
-                  icon: Icon(FontAwesomeIcons.video))
+                  icon: const Icon(Icons.video_library))
             ],
           ),
           body: Padding(

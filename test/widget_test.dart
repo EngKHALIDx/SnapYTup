@@ -11,8 +11,8 @@ void main() {
     expect(1 + 1, equals(2));
   });
 
-  test('string concatenation works', () {
-    const appName = 'Snap' + 'YT';
+  test('string equality works', () {
+    const appName = 'SnapYT';
     expect(appName, equals('SnapYT'));
   });
 
