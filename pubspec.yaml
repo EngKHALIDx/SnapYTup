@@ -1,7 +1,7 @@
 name: snap_yt
-description: "MediaGrab — A multi-platform video & audio downloader with built-in players and browser (Snaptube-style, NOT affiliated with Snaptube)."
+description: "MediaGrab — Apple-designed video & music downloader."
 publish_to: 'none'
-version: 2.0.0+1
+version: 3.0.0+1
 
 environment:
   sdk: ^3.6.0
@@ -9,20 +9,18 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
 
   cupertino_icons: ^1.0.8
 
-  # State management
+  # State management — lightweight (riverpod alone, no annotation/codegen)
   flutter_riverpod: ^2.5.1
-  riverpod_annotation: ^2.3.5
 
-  # Networking & downloads
+  # Networking & downloads — dio is the only HTTP client we need
   dio: ^5.7.0
-  http: ^1.2.2
-  connectivity_plus: ^6.1.1
-  cached_network_image: ^3.4.1
 
-  # YouTube parsing
+  # YouTube parsing (mandatory — this is the core feature)
   youtube_explode_dart: ^2.3.6
 
   # Permissions & storage
@@ -30,53 +28,24 @@ dependencies:
   path_provider: ^2.1.5
   path: ^1.9.0
   shared_preferences: ^2.3.3
-  photo_manager: ^3.6.4
   device_info_plus: ^11.2.0
   package_info_plus: ^8.1.2
 
-  # Built-in browser + video detection
+  # Built-in browser (kept — core feature for non-YouTube platforms)
   webview_flutter: ^4.10.0
   html: ^0.15.4
 
-  # Media players
+  # Media players (kept — required for the value proposition)
   video_player: ^2.9.2
   chewie: ^1.8.5
   just_audio: ^0.9.43
-  audio_service: ^0.18.17
   audio_session: ^0.1.21
 
-  # UI / Utils
-  hexcolor: ^3.0.1
+  # URL launcher (for opening external links)
   url_launcher: ^6.3.1
-  share_plus: ^10.1.4
-  flutter_markdown: ^0.7.4+3
-  intl: ^0.20.2
-  uuid: ^4.5.1
+
+  # Collection (firstWhereOrNull etc.)
   collection: ^1.18.0
-
-  # Notifications & foreground service for downloads
-  flutter_local_notifications: ^18.0.1
-
-  # Video trimming (optional, will lazy-load ffmpeg at runtime)
-  # video_trimmer: ^3.0.1  # commented out — heavy, can enable later
-
-  # File picker for custom save paths
-  file_picker: ^8.1.7
-
-  # Clipboard watcher — auto-detect copied URLs (Snaptube feature)
-  # (Native dart:io clipboard API used as fallback when this package isn't available)
-
-  # Floating window / PiP — handled natively via Android's PictureInPicture
-  # API in MainActivity.kt (no extra Flutter package needed).
-  # The previous `floating: ^3.0.0` package used the deprecated Flutter v1
-  # `Registrar` API and broke the build on Flutter 3.44+.
-
-  # Receive sharing intents (share-to-app) — handled via AndroidManifest
-  # <intent-filter> SEND action; no Dart-side plugin needed for the MVP.
-
-  # Localizations / 49 languages
-  flutter_localizations:
-    sdk: flutter
 
 dev_dependencies:
   flutter_test:
@@ -86,6 +55,4 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/applogo.png
-    - assets/applogo_bg.png
     - CHANGELOG.md
