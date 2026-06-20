@@ -21,7 +21,7 @@ dependencies:
   dio: ^5.7.0
 
   # YouTube parsing (mandatory — this is the core feature)
-  youtube_explode_dart: ^2.3.6
+  youtube_explode_dart: ^3.1.0
 
   # Permissions & storage
   permission_handler: ^11.3.1

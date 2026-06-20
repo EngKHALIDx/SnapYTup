@@ -21,8 +21,28 @@ class YouTubeService {
   /// Get available quality options for a YouTube video.
   /// Filters out any stream whose URL is null/empty (the cause of the
   /// 'Null is not a subtype of type "Uri"' error).
+  ///
+  /// Returns an empty list if the video is unavailable, age-restricted,
+  /// private, or region-locked — never throws.
   Future<List<QualityOption>> getQualities(String videoId) async {
-    final manifest = await _yt.videos.streamsClient.getManifest(videoId);
+    yt.StreamManifest manifest;
+    try {
+      manifest = await _yt.videos.streamsClient.getManifest(videoId);
+    } on yt.VideoUnavailableException {
+      // Video has been removed/private/deleted.
+      return [];
+    } on yt.VideoRequiresPurchaseException {
+      // Video requires rental/purchase — no downloadable streams.
+      return [];
+    } on yt.VideoUnplayableException {
+      // Video exists but is unplayable (DRM, age-restricted, etc.).
+      // Also catches VideoRequiresPurchaseException (a subtype).
+      return [];
+    } catch (_) {
+      // Any other failure (network, parsing, etc.) — return empty so the
+      // UI shows "no qualities available" instead of crashing.
+      return [];
+    }
 
     final muxed = <QualityOption>[];
     for (final s in manifest.muxed) {
