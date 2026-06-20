@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/services/history_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/format_utils.dart';
 import '../../../widgets/media_thumbnail.dart';
@@ -44,6 +45,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     setState(() {
       _recent = [query, ..._recent.where((e) => e != query)].take(8).toList();
     });
+    // Persist to global search history.
+    ref.read(historyServiceProvider).addToSearchHistory(query.trim());
+    ref.invalidate(searchHistoryProvider);
     ref.read(searchQueryProvider.notifier).state = query.trim();
     _focus.unfocus();
   }
@@ -296,6 +300,26 @@ class _SearchResultTile extends StatelessWidget {
                   ),
                 ),
               ),
+            // Snaptube-pattern: small black download arrow overlaid on thumbnail corner.
+            Positioned(
+              left: 4,
+              bottom: 4,
+              child: GestureDetector(
+                onTap: onTap,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.7),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.arrow_downward,
+                    color: Colors.white,
+                    size: 14,
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),

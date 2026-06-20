@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app.dart';
+import 'core/services/history_service.dart';
+import 'core/services/playlists_service.dart';
 import 'core/services/theme_controller.dart';
 import 'core/services/vault_controller.dart';
 import 'core/utils/storage_utils.dart';
@@ -25,12 +27,10 @@ Future<void> main() async {
   runApp(
     ProviderScope(
       overrides: [
-        themeControllerProvider.overrideWith(
-          (ref) => ThemeController(prefs),
-        ),
-        vaultControllerProvider.overrideWith(
-          (ref) => VaultController(prefs),
-        ),
+        themeControllerProvider.overrideWith((ref) => ThemeController(prefs)),
+        vaultControllerProvider.overrideWith((ref) => VaultController(prefs)),
+        historyServiceProvider.overrideWith((ref) => HistoryService(prefs)),
+        playlistsServiceProvider.overrideWith((ref) => PlaylistsService(prefs)),
       ],
       child: const MediaGrabApp(),
     ),

@@ -8,10 +8,9 @@ import '../../../widgets/app_bottom_nav.dart';
 import '../widgets/category_grid.dart';
 import '../widgets/daily_picks_section.dart';
 
-/// Home screen — Snaptube-style: top search bar + platform shortcuts grid +
-/// categories + daily picks. The platform shortcuts row sits below the AppBar
-/// and acts as the fastest way to jump to a platform's mobile site in the
-/// Browser tab.
+/// Home screen — Snaptube-style: top search bar (accepts keywords OR pasted
+/// video URLs) + horizontal platform shortcut row + trending feed +
+/// categories + daily picks.
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
@@ -46,11 +45,18 @@ class HomeScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: const CustomScrollView(
+      body: CustomScrollView(
         slivers: [
-          SliverToBoxAdapter(child: _HeroBanner()),
-          SliverToBoxAdapter(child: _PlatformShortcuts()),
-          SliverPadding(
+          // Search bar that accepts both keywords and pasted URLs (Snaptube pattern)
+          SliverToBoxAdapter(child: _HomeSearchBar(onTap: () {
+            // Jump to the Search tab.
+            ref.read(selectedTabProvider.notifier).state = 1;
+          })),
+          // Platform shortcut row + "View all sites"
+          const SliverToBoxAdapter(child: _PlatformShortcuts()),
+          const SliverToBoxAdapter(child: _HeroBanner()),
+          // Categories section
+          const SliverPadding(
             padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
             sliver: SliverToBoxAdapter(
               child: Text(
@@ -59,9 +65,10 @@ class HomeScreen extends ConsumerWidget {
               ),
             ),
           ),
-          SliverToBoxAdapter(child: CategoryGrid(categories: homeCategories),),
-          SliverToBoxAdapter(child: SizedBox(height: 16)),
-          SliverToBoxAdapter(
+          const SliverToBoxAdapter(child: CategoryGrid(categories: homeCategories)),
+          const SliverToBoxAdapter(child: SizedBox(height: 16)),
+          // Daily picks
+          const SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.symmetric(horizontal: 16),
               child: Text(
@@ -70,9 +77,49 @@ class HomeScreen extends ConsumerWidget {
               ),
             ),
           ),
-          SliverToBoxAdapter(child: DailyPicksSection()),
-          SliverToBoxAdapter(child: SizedBox(height: 32)),
+          const SliverToBoxAdapter(child: DailyPicksSection()),
+          const SliverToBoxAdapter(child: SizedBox(height: 32)),
         ],
+      ),
+    );
+  }
+}
+
+/// Tappable search bar that looks like Snaptube's: pill-shaped, hint says
+/// "Search or paste a link". Tapping opens the full Search screen.
+class _HomeSearchBar extends StatelessWidget {
+  const _HomeSearchBar({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.darkSurfaceAlt : AppColors.lightSurfaceAlt,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.search, color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Search or paste a link',
+                  style: TextStyle(
+                    color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                  ),
+                ),
+              ),
+              Icon(Icons.mic_none, color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -87,7 +134,7 @@ class _HeroBanner extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Container(
-        height: 160,
+        height: 140,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
           gradient: const LinearGradient(
@@ -134,7 +181,7 @@ class _HeroBanner extends StatelessWidget {
 }
 
 /// Quick-launch row of platform icons — tapping one opens the platform's
-/// mobile site in the Browser tab.
+/// mobile site in the Browser tab. Includes a "View all" tile at the end.
 class _PlatformShortcuts extends ConsumerWidget {
   const _PlatformShortcuts();
 
@@ -145,8 +192,38 @@ class _PlatformShortcuts extends ConsumerWidget {
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        itemCount: AppConfig.platforms.length,
+        // +1 for the "View all" tile at the end.
+        itemCount: AppConfig.platforms.length + 1,
         itemBuilder: (context, i) {
+          if (i == AppConfig.platforms.length) {
+            return Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: InkWell(
+                onTap: () {
+                  // Switch to Browser tab.
+                  ref.read(selectedTabProvider.notifier).state = 2;
+                },
+                borderRadius: BorderRadius.circular(12),
+                child: Column(
+                  children: [
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: AppColors.darkBorder.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Center(
+                        child: Icon(Icons.apps, color: AppColors.primary),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text('All sites', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500)),
+                  ],
+                ),
+              ),
+            );
+          }
           final p = AppConfig.platforms[i];
           return Padding(
             padding: const EdgeInsets.only(right: 12),

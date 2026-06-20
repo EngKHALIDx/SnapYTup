@@ -25,6 +25,7 @@ class _DownloadOptionsSheetState extends ConsumerState<DownloadOptionsSheet> {
   List<StreamQualityOption>? _qualities;
   bool _loading = true;
   String? _error;
+  bool _showMoreFormats = false;
 
   @override
   void initState() {
@@ -123,11 +124,13 @@ class _DownloadOptionsSheetState extends ConsumerState<DownloadOptionsSheet> {
     if (widget.item.platform != MediaPlatform.youtube) {
       return ListView(
         controller: controller,
+        padding: const EdgeInsets.all(16),
         children: [
+          _SectionLabel(icon: Icons.movie, text: 'Video (MP4)', color: AppColors.primary),
           _OptionTile(
             leading: const Icon(Icons.movie),
-            title: 'Video',
-            subtitle: 'Direct download',
+            title: 'Direct download',
+            subtitle: 'Best available quality',
             onTap: () => _enqueue(
               streamUrl: widget.item.streamUrl!,
               quality: 'video',
@@ -135,10 +138,12 @@ class _DownloadOptionsSheetState extends ConsumerState<DownloadOptionsSheet> {
               extractAudio: false,
             ),
           ),
+          const SizedBox(height: 12),
+          _SectionLabel(icon: Icons.music_note, text: 'Audio (MP3 / M4A)', color: AppColors.secondary),
           _OptionTile(
             leading: const Icon(Icons.music_note),
-            title: 'Audio',
-            subtitle: 'Direct download (audio only)',
+            title: 'Direct download',
+            subtitle: 'Audio only',
             onTap: () => _enqueue(
               streamUrl: widget.item.streamUrl!,
               quality: 'audio',
@@ -150,23 +155,70 @@ class _DownloadOptionsSheetState extends ConsumerState<DownloadOptionsSheet> {
       );
     }
 
-    return ListView(
-      controller: controller,
-      padding: const EdgeInsets.all(16),
-      children: [
-        for (final q in qualities.take(8))
-          _OptionTile(
-            leading: Icon(q.isAudioOnly ? Icons.music_note : Icons.movie),
-            title: q.isAudioOnly ? 'Audio ${q.label}' : q.label,
-            subtitle: FormatUtils.bytes(q.sizeBytes),
-            onTap: () => _enqueue(
-              streamUrl: q.url,
-              quality: q.label,
-              format: q.isAudioOnly ? 'm4a' : 'mp4',
-              extractAudio: q.isAudioOnly,
+    // YouTube case: split into Video and Audio groups (Snaptube pattern).
+    final videoQualities = qualities.where((q) => !q.isAudioOnly).toList();
+    final audioQualities = qualities.where((q) => q.isAudioOnly).toList();
+
+    return StatefulBuilder(
+      builder: (context, setState) {
+        return ListView(
+          controller: controller,
+          padding: const EdgeInsets.all(16),
+          children: [
+            // Video group
+            _SectionLabel(icon: Icons.movie, text: 'Video (MP4)', color: AppColors.primary),
+            for (final q in (_showMoreFormats ? videoQualities : videoQualities.take(4)))
+              _OptionTile(
+                leading: const Icon(Icons.movie_outlined),
+                title: q.label,
+                subtitle: FormatUtils.bytes(q.sizeBytes),
+                onTap: () => _enqueue(
+                  streamUrl: q.url,
+                  quality: q.label,
+                  format: 'mp4',
+                  extractAudio: false,
+                ),
+              ),
+            // Audio group
+            const SizedBox(height: 12),
+            _SectionLabel(icon: Icons.music_note, text: 'Audio (MP3 / M4A)', color: AppColors.secondary),
+            for (final q in (_showMoreFormats ? audioQualities : audioQualities.take(3)))
+              _OptionTile(
+                leading: const Icon(Icons.music_note_outlined),
+                title: q.label,
+                subtitle: FormatUtils.bytes(q.sizeBytes),
+                onTap: () => _enqueue(
+                  streamUrl: q.url,
+                  quality: q.label,
+                  format: q.isAudioOnly ? 'm4a' : 'mp4',
+                  extractAudio: q.isAudioOnly,
+                ),
+              ),
+            // "More Formats" expander (Snaptube pattern)
+            const SizedBox(height: 8),
+            Center(
+              child: TextButton.icon(
+                onPressed: () => setState(() => _showMoreFormats = !_showMoreFormats),
+                icon: Icon(_showMoreFormats ? Icons.expand_less : Icons.expand_more),
+                label: Text(_showMoreFormats ? 'Show less' : 'More Formats'),
+              ),
             ),
-          ),
-      ],
+            // Subtitles placeholder
+            const Divider(),
+            _OptionTile(
+              leading: const Icon(Icons.subtitles_outlined, color: AppColors.info),
+              title: 'Subtitles / CC',
+              subtitle: 'Pick subtitle language',
+              onTap: () {
+                Navigator.of(context).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('No subtitles available for this video.')),
+                );
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -221,6 +273,36 @@ class _OptionTile extends StatelessWidget {
         subtitle: Text(subtitle),
         trailing: const Icon(Icons.download_for_offline, color: AppColors.primary),
         onTap: onTap,
+      ),
+    );
+  }
+}
+
+/// Section label inside the download sheet (e.g. "Video (MP4)", "Audio (MP3)").
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel({required this.icon, required this.text, required this.color});
+  final IconData icon;
+  final String text;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 4),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 18),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: color,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
       ),
     );
   }

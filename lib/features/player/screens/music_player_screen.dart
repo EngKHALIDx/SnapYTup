@@ -1,13 +1,16 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/format_utils.dart';
+import '../services/sleep_timer_controller.dart';
+import '../widgets/lyrics_panel.dart';
 
-/// Audio player screen with queue, repeat modes and basic controls.
-class MusicPlayerScreen extends StatefulWidget {
+/// Audio player screen with queue, repeat modes, sleep timer and lyrics.
+class MusicPlayerScreen extends ConsumerStatefulWidget {
   const MusicPlayerScreen({
     super.key,
     required this.queue,
@@ -19,10 +22,10 @@ class MusicPlayerScreen extends StatefulWidget {
   final int initialIndex;
 
   @override
-  State<MusicPlayerScreen> createState() => _MusicPlayerScreenState();
+  ConsumerState<MusicPlayerScreen> createState() => _MusicPlayerScreenState();
 }
 
-class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
+class _MusicPlayerScreenState extends ConsumerState<MusicPlayerScreen> {
   late AudioPlayer _player;
   late int _index;
   bool _loading = true;
@@ -92,7 +95,16 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
             const Spacer(),
             const Text('Now Playing', style: TextStyle(fontWeight: FontWeight.bold)),
             const Spacer(),
-            IconButton(icon: const Icon(Icons.more_vert), onPressed: () {}),
+            IconButton(
+              icon: const Icon(Icons.lyrics_outlined),
+              tooltip: 'Lyrics',
+              onPressed: () => _showLyrics(context),
+            ),
+            IconButton(
+              icon: const Icon(Icons.nightlight_outlined),
+              tooltip: 'Sleep timer',
+              onPressed: () => _showSleepTimer(context),
+            ),
           ],
         ),
         // Album art placeholder
@@ -167,6 +179,76 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                   ),
                 ),
               ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showLyrics(BuildContext context) {
+    final title = File(widget.queue[_index]).uri.pathSegments.last;
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => FractionallySizedBox(
+        heightFactor: 0.7,
+        child: LyricsPanel(artist: '', title: title.replaceAll(RegExp(r'\.\w+$'), '')),
+      ),
+    );
+  }
+
+  void _showSleepTimer(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (ctx) {
+        return Consumer(
+          builder: (ctx, ref, _) {
+            final state = ref.watch(sleepTimerProvider);
+            return SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text('Sleep timer', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  ),
+                  if (state.active && state.remaining != null)
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Text(
+                        'Remaining: ${FormatUtils.duration(state.remaining)}',
+                        style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  Wrap(
+                    spacing: 8,
+                    children: [5, 10, 15, 30, 45, 60].map((m) {
+                      return ActionChip(
+                        label: Text('$m min'),
+                        onPressed: () {
+                          ref.read(sleepTimerProvider.notifier).start(m, onComplete: _player.pause);
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Music will stop in $m minutes.')),
+                          );
+                        },
+                      );
+                    }).toList(),
+                  ),
+                  if (state.active)
+                    TextButton.icon(
+                      onPressed: () {
+                        ref.read(sleepTimerProvider.notifier).cancel();
+                        Navigator.pop(ctx);
+                      },
+                      icon: const Icon(Icons.cancel),
+                      label: const Text('Cancel timer'),
+                    ),
+                  const SizedBox(height: 16),
+                ],
+              ),
             );
           },
         );

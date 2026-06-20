@@ -99,4 +99,61 @@ class MediaItem {
       fileSizeBytes: fileSizeBytes ?? this.fileSizeBytes,
     );
   }
+
+  /// Serialize to JSON (for storage in SharedPreferences, history, etc.).
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'platform': platform.name,
+        'sourceUrl': sourceUrl,
+        'streamUrl': streamUrl,
+        'thumbnailUrl': thumbnailUrl,
+        'durationMs': duration?.inMilliseconds,
+        'author': author,
+        'authorAvatar': authorAvatar,
+        'viewCount': viewCount,
+        'uploadDate': uploadDate?.toIso8601String(),
+        'description': description,
+        'type': type.name,
+        'availableQualities': availableQualities,
+        'fileSizeBytes': fileSizeBytes,
+      };
+
+  /// Deserialize from JSON.
+  factory MediaItem.fromJson(Map<String, dynamic> json) {
+    return MediaItem(
+      id: json['id'] as String,
+      title: json['title'] as String,
+      platform: MediaPlatform.values.firstWhere(
+        (p) => p.name == json['platform'],
+        orElse: () => MediaPlatform.unknown,
+      ),
+      sourceUrl: json['sourceUrl'] as String,
+      streamUrl: json['streamUrl'] as String?,
+      thumbnailUrl: json['thumbnailUrl'] as String?,
+      duration: json['durationMs'] != null
+          ? Duration(milliseconds: (json['durationMs'] as num).toInt())
+          : null,
+      author: json['author'] as String?,
+      authorAvatar: json['authorAvatar'] as String?,
+      viewCount: json['viewCount'] != null
+          ? (json['viewCount'] as num).toInt()
+          : null,
+      uploadDate: json['uploadDate'] != null
+          ? DateTime.tryParse(json['uploadDate'] as String)
+          : null,
+      description: json['description'] as String?,
+      type: MediaType.values.firstWhere(
+        (t) => t.name == json['type'],
+        orElse: () => MediaType.video,
+      ),
+      availableQualities: (json['availableQualities'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          const ['720p'],
+      fileSizeBytes: json['fileSizeBytes'] != null
+          ? (json['fileSizeBytes'] as num).toInt()
+          : null,
+    );
+  }
 }

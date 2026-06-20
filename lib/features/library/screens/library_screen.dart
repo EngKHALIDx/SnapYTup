@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/services/mp3_converter_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/repositories/library_repository.dart';
 import '../../player/screens/video_player_screen.dart';
@@ -137,6 +138,7 @@ class _AsyncGrid extends ConsumerWidget {
                   ),
                 );
               },
+              onLongPress: () => _showItemOptions(context, ref, item, type),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: Stack(
@@ -208,4 +210,79 @@ class _EmptyState extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Long-press bottom sheet: play, convert to MP3, share, delete.
+void _showItemOptions(BuildContext context, WidgetRef ref, dynamic item, String type) {
+  showModalBottomSheet<void>(
+    context: context,
+    builder: (ctx) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.play_arrow),
+            title: const Text('Play'),
+            onTap: () {
+              Navigator.pop(ctx);
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => VideoPlayerScreen(filePath: item.sourceUrl, title: item.title),
+                ),
+              );
+            },
+          ),
+          if (type == 'video')
+            ListTile(
+              leading: const Icon(Icons.music_note, color: AppColors.primary),
+              title: const Text('Convert to MP3'),
+              subtitle: const Text('Copy audio track into Music folder'),
+              onTap: () async {
+                Navigator.pop(ctx);
+                final dest = await ref.read(mp3ConverterProvider).convertToMp3(
+                      item.sourceUrl,
+                      title: item.title,
+                    );
+                if (!context.mounted) return;
+                if (dest != null) {
+                  ref.invalidate(videosProvider);
+                  ref.invalidate(musicProvider);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Saved MP3: ${dest.split('/').last}')),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Conversion failed.')),
+                  );
+                }
+              },
+            ),
+          ListTile(
+            leading: const Icon(Icons.share),
+            title: const Text('Share'),
+            onTap: () {
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Share requires share_plus plugin.')),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.delete_outline, color: AppColors.error),
+            title: const Text('Delete file'),
+            onTap: () async {
+              Navigator.pop(ctx);
+              await ref.read(libraryRepoProvider).delete(item.sourceUrl);
+              ref.invalidate(videosProvider);
+              ref.invalidate(musicProvider);
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('File deleted.')),
+              );
+            },
+          ),
+        ],
+      ),
+    ),
+  );
 }

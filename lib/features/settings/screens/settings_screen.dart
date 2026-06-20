@@ -8,6 +8,8 @@ import '../../../core/services/theme_controller.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/storage_utils.dart';
 import '../../../data/repositories/library_repository.dart';
+import '../../history/screens/history_screen.dart';
+import '../../playlists/screens/playlists_screen.dart';
 import '../../storage_cleanup/screens/storage_cleanup_screen.dart';
 import '../../vault/screens/vault_unlock_screen.dart';
 
@@ -66,6 +68,26 @@ class SettingsScreen extends ConsumerWidget {
             onTap: () {
               // TODO: show quality picker
             },
+          ),
+          const Divider(),
+          _SectionHeader('Library'),
+          ListTile(
+            leading: const Icon(Icons.history, color: AppColors.info),
+            title: const Text('History'),
+            subtitle: const Text('Watched, downloaded, favorites'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const HistoryScreen()),
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.playlist_play, color: AppColors.secondary),
+            title: const Text('Playlists'),
+            subtitle: const Text('Custom music / video collections'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const PlaylistsScreen()),
+            ),
           ),
           const Divider(),
           _SectionHeader('Privacy & Storage'),
