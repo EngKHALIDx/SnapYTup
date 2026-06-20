@@ -36,10 +36,12 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.debug
-            // Minify + resource shrinking → smaller APK
-            shrinkResources = true
-            minifyEnabled = true
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            // NOTE: minifyEnabled causes R8 "Missing class com.google.android.play.core.*"
+            // errors because Flutter's engine references Play Core classes (used for
+            // Play Store deferred components) which we don't include. Disabling minify
+            // is the safe choice for Flutter — APK size is dominated by Dart AOT, not Java.
+            shrinkResources = false
+            minifyEnabled = false
         }
     }
 }
