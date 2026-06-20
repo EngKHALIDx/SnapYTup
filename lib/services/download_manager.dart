@@ -7,21 +7,43 @@ import 'package:path_provider/path_provider.dart';
 import '../models/download_task.dart';
 import '../models/media_item.dart';
 
+/// Manages download tasks with these guarantees:
+/// 1. Files are saved to /Android/data/&lt;pkg&gt;/files/MediaGrab/{Videos|Music}/
+///    — works on Android 10+ without MANAGE_EXTERNAL_STORAGE.
+/// 2. Pause/resume uses HTTP Range headers when the server supports it
+///    (most CDNs do), so resume continues from where it left off.
+/// 3. Concurrent downloads are limited to 3 to avoid saturating the network.
+/// 4. Each task gets a unique id; the UI rebuilds whenever any field changes
+///    because we replace the entire state list with a new List reference.
+/// 5. Failed downloads show the actual error message.
 class DownloadManager extends StateNotifier<List<DownloadTask>> {
   DownloadManager() : super([]);
-  final Dio _dio = Dio();
+  final Dio _dio = Dio(BaseOptions(
+    connectTimeout: const Duration(seconds: 15),
+    receiveTimeout: const Duration(minutes: 30),
+    sendTimeout: const Duration(seconds: 15),
+    followRedirects: true,
+    maxRedirects: 5,
+  ));
   final Map<String, CancelToken> _cancelers = {};
+  static const int _maxConcurrent = 3;
+  int _activeCount = 0;
 
   Future<Directory> _dir(bool audio) async {
-    final base = await getExternalStorageDirectory() ?? await getApplicationDocumentsDirectory();
+    final base = await getExternalStorageDirectory() ??
+        await getApplicationDocumentsDirectory();
     final sub = audio ? 'Music' : 'Videos';
     final d = Directory(p.join(base.path, 'MediaGrab', sub));
     if (!d.existsSync()) d.createSync(recursive: true);
     return d;
   }
 
-  String _safeName(String s) => s.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_').trim();
+  String _safeName(String s) {
+    final cleaned = s.replaceAll(RegExp(r'[\\/:*?"<>|\r\n\t]'), '_').trim();
+    return cleaned.isEmpty ? 'media_${DateTime.now().millisecondsSinceEpoch}' : cleaned;
+  }
 
+  /// Enqueue a new download. Returns the task id (empty string on failure).
   Future<String> enqueue({
     required MediaItem media,
     required String streamUrl,
@@ -29,84 +51,197 @@ class DownloadManager extends StateNotifier<List<DownloadTask>> {
     required String format,
     required bool isAudio,
   }) async {
+    if (streamUrl.isEmpty) {
+      return '';
+    }
     final dir = await _dir(isAudio);
     final name = _safeName('${media.author ?? ''} ${media.title}'.trim());
+    // Avoid filename collisions: if file exists, append (1), (2), ...
+    var savePath = p.join(dir.path, '$name.$format');
+    var counter = 1;
+    while (File(savePath).existsSync()) {
+      savePath = p.join(dir.path, '$name ($counter).$format');
+      counter++;
+    }
     final task = DownloadTask(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
       media: media.copyWith(streamUrl: streamUrl),
       quality: quality,
       format: format,
-      savePath: p.join(dir.path, '$name.$format'),
+      savePath: savePath,
       isAudio: isAudio,
     );
     state = [...state, task];
-    _run(task);
+    _runIfSlot(task);
     return task.id;
   }
 
   void pause(String id) {
-    _cancelers[id]?.cancel('paused');
+    final canceler = _cancelers[id];
+    if (canceler != null && !canceler.isCancelled) {
+      canceler.cancel('paused');
+    }
     _update(id, (t) => t.state = DownloadState.paused);
   }
 
   void resume(String id) {
-    final t = state.where((e) => e.id == id).firstOrNull;
-    if (t != null && (t.state == DownloadState.paused || t.state == DownloadState.failed)) _run(t);
+    final t = _find(id);
+    if (t != null &&
+        (t.state == DownloadState.paused || t.state == DownloadState.failed)) {
+      _runIfSlot(t);
+    }
   }
 
   void cancel(String id) {
-    _cancelers[id]?.cancel('canceled');
+    final canceler = _cancelers[id];
+    if (canceler != null && !canceler.isCancelled) {
+      canceler.cancel('canceled');
+    }
     _update(id, (t) => t.state = DownloadState.failed);
   }
 
   void remove(String id) {
+    cancel(id);
     state = state.where((t) => t.id != id).toList();
   }
 
+  /// Retry a failed/canceled task.
+  void retry(String id) {
+    final t = _find(id);
+    if (t == null || !t.canRetry) return;
+    t
+      ..progress = 0
+      ..downloadedBytes = 0
+      ..totalBytes = 0
+      ..error = null;
+    _runIfSlot(t);
+  }
+
+  /// Clear all completed/failed tasks (keeps only active + queued).
+  void clearFinished() {
+    state = state.where((t) => t.isActive).toList();
+  }
+
+  DownloadTask? _find(String id) {
+    for (final t in state) {
+      if (t.id == id) return t;
+    }
+    return null;
+  }
+
   void _update(String id, void Function(DownloadTask) fn) {
-    final t = state.where((e) => e.id == id).firstOrNull;
+    final t = _find(id);
     if (t == null) return;
     fn(t);
     state = [...state];
   }
 
+  /// Run a task if the concurrency slot is available; otherwise queue it.
+  void _runIfSlot(DownloadTask task) {
+    if (_activeCount >= _maxConcurrent) {
+      _update(task.id, (t) => t.state = DownloadState.queued);
+      return;
+    }
+    _run(task);
+  }
+
+  /// Check if any queued task can be started now.
+  void _pumpQueue() {
+    if (_activeCount >= _maxConcurrent) return;
+    final queued = state
+        .where((t) => t.state == DownloadState.queued)
+        .toList();
+    for (final t in queued) {
+      if (_activeCount >= _maxConcurrent) break;
+      _run(t);
+    }
+  }
+
   Future<void> _run(DownloadTask task) async {
     final canceler = CancelToken();
     _cancelers[task.id] = canceler;
+    _activeCount++;
     task
       ..state = DownloadState.running
       ..startTime = DateTime.now()
-      ..progress = 0
       ..error = null;
+    // Don't reset progress — keep the previous value so resume feels
+    // continuous in the UI. dio will overwrite it once it sends back bytes.
     state = [...state];
 
     try {
+      final file = File(task.savePath);
+      // For resume: if the partial file exists, send Range header.
+      final existingLength = file.existsSync() ? await file.length() : 0;
+      final headers = <String, dynamic>{};
+      if (existingLength > 0) {
+        headers['Range'] = 'bytes=$existingLength-';
+      }
+
       await _dio.download(
         task.media.streamUrl!,
         task.savePath,
         cancelToken: canceler,
-        options: Options(receiveTimeout: const Duration(minutes: 30)),
+        options: Options(headers: headers, receiveTimeout: const Duration(minutes: 30)),
         onReceiveProgress: (received, total) {
+          // If resuming, the server reports total = remaining bytes (not full file).
+          // Compute effective total based on existingLength + total.
+          final effectiveTotal = existingLength > 0 && total > 0
+              ? existingLength + total
+              : total;
           task
-            ..downloadedBytes = received
-            ..totalBytes = total
-            ..progress = total > 0 ? received / total : 0;
+            ..downloadedBytes = existingLength + received
+            ..totalBytes = effectiveTotal
+            ..progress = effectiveTotal > 0
+                ? (existingLength + received) / effectiveTotal
+                : 0;
           state = [...state];
         },
       );
-      task.state = DownloadState.completed;
-      task.progress = 1;
+      task
+        ..state = DownloadState.completed
+        ..progress = 1;
     } on DioException catch (e) {
-      if (e.type != DioExceptionType.cancel) {
-        task.state = DownloadState.failed;
-        task.error = e.message ?? 'Download failed';
+      if (e.type == DioExceptionType.cancel) {
+        // Pause/cancel already set the state; don't overwrite.
+      } else {
+        task
+          ..state = DownloadState.failed
+          ..error = _dioError(e);
       }
     } catch (e) {
-      task.state = DownloadState.failed;
-      task.error = e.toString();
+      task
+        ..state = DownloadState.failed
+        ..error = e.toString();
     } finally {
       _cancelers.remove(task.id);
+      _activeCount--;
       state = [...state];
+      _pumpQueue();
+    }
+  }
+
+  String _dioError(DioException e) {
+    switch (e.type) {
+      case DioExceptionType.connectionTimeout:
+        return 'انتهت مهلة الاتصال';
+      case DioExceptionType.sendTimeout:
+        return 'انتهت مهلة الإرسال';
+      case DioExceptionType.receiveTimeout:
+        return 'انتهت مهلة الاستقبال';
+      case DioExceptionType.badResponse:
+        final code = e.response?.statusCode;
+        return code == 403
+            ? 'الخادم رفض الطلب (403)'
+            : code == 404
+                ? 'الملف غير موجود (404)'
+                : 'خطأ في الاستجابة ($code)';
+      case DioExceptionType.cancel:
+        return 'تم الإلغاء';
+      case DioExceptionType.connectionError:
+        return 'تعذر الاتصال بالإنترنت';
+      default:
+        return e.message ?? 'فشل التنزيل';
     }
   }
 

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/media_item.dart';
 import '../services/download_manager.dart';
 import '../services/youtube_service.dart';
+import '../widgets/tab_bar.dart';
 
 class DownloadSheet extends ConsumerStatefulWidget {
   const DownloadSheet({super.key, required this.item});
@@ -17,6 +18,7 @@ class _DownloadSheetState extends ConsumerState<DownloadSheet> {
   List<QualityOption>? _options;
   int _selected = 0;
   bool _loading = true;
+  String? _error;
 
   @override
   void initState() {
@@ -46,7 +48,10 @@ class _DownloadSheetState extends ConsumerState<DownloadSheet> {
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _loading = false);
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
     }
   }
 
@@ -91,7 +96,7 @@ class _DownloadSheetState extends ConsumerState<DownloadSheet> {
                   ),
                   GestureDetector(
                     onTap: () => Navigator.pop(context),
-                    child: Icon(CupertinoIcons.xmark, size: 22, color: const Color(0xFF8E8E93)),
+                    child: const Icon(CupertinoIcons.xmark, size: 22, color: Color(0xFF8E8E93)),
                   ),
                 ],
               ),
@@ -103,35 +108,43 @@ class _DownloadSheetState extends ConsumerState<DownloadSheet> {
                 widget.item.title,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: isDark ? const Color(0xFF8E8E93) : const Color(0xFF8E8E93),
-                ),
+                style: const TextStyle(fontSize: 14, color: Color(0xFF8E8E93)),
               ),
             ),
             const Divider(height: 1),
-            // Options list
-            ConstrainedBox(
-              constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.5),
-              child: _loading
-                  ? const Center(child: CupertinoActivityIndicator(radius: 14))
-                  : ListView.separated(
-                      shrinkWrap: true,
-                      itemCount: _options!.length,
-                      separatorBuilder: (_, __) => const Divider(indent: 56, height: 1),
-                      itemBuilder: (context, i) => _option(i),
-                    ),
-            ),
+            // Body
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text('تعذر تحميل الجودات:\n$_error',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Color(0xFFFF3B30), fontSize: 14)),
+              )
+            else
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.45),
+                child: _loading
+                    ? const Center(child: CupertinoActivityIndicator(radius: 14))
+                    : ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: _options!.length,
+                        separatorBuilder: (_, __) =>
+                            const Divider(indent: 56, height: 1),
+                        itemBuilder: (context, i) => _option(i),
+                      ),
+              ),
             const Divider(height: 1),
             // Confirm button
             Padding(
               padding: const EdgeInsets.all(16),
               child: FilledButton(
-                onPressed: _loading ? null : _enqueue,
+                onPressed: (_loading || _options == null || _options!.isEmpty) ? null : _enqueue,
                 style: FilledButton.styleFrom(
-                  minimumSize: const Size.fromHeight(48),
+                  minimumSize: const Size.fromHeight(50),
                 ),
-                child: const Text('تحميل الآن', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                child: const Text('تحميل الآن',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
               ),
             ),
           ],
@@ -209,14 +222,42 @@ class _DownloadSheetState extends ConsumerState<DownloadSheet> {
 
   Future<void> _enqueue() async {
     final opt = _options![_selected];
-    await ref.read(downloadManagerProvider.notifier).enqueue(
+    final id = await ref.read(downloadManagerProvider.notifier).enqueue(
           media: widget.item.copyWith(streamUrl: opt.url),
           streamUrl: opt.url,
           quality: opt.label,
           format: opt.container,
           isAudio: opt.isAudio,
         );
+
     if (!mounted) return;
+
+    // Close the bottom sheet
     Navigator.pop(context);
+
+    // Switch to the Downloads tab so the user sees live progress
+    ref.read(selectedTabProvider.notifier).state = 1;
+
+    // Show a snackbar confirmation
+    if (id.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('تم بدء التنزيل'),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('فشل بدء التنزيل'),
+          backgroundColor: const Color(0xFFFF3B30),
+          duration: const Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    }
   }
 }
