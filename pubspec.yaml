@@ -1,7 +1,7 @@
 name: snap_yt
 description: "MediaGrab — Apple-designed video & music downloader."
 publish_to: 'none'
-version: 3.0.0+1
+version: 3.1.0+1
 
 environment:
   sdk: ^3.6.0
@@ -14,35 +14,27 @@ dependencies:
 
   cupertino_icons: ^1.0.8
 
-  # State management — lightweight (riverpod alone, no annotation/codegen)
+  # State management
   flutter_riverpod: ^2.5.1
 
-  # Networking & downloads — dio is the only HTTP client we need
+  # Networking & downloads
   dio: ^5.7.0
 
-  # YouTube parsing (mandatory — this is the core feature)
+  # YouTube parsing
   youtube_explode_dart: ^3.1.0
 
-  # Permissions & storage
-  permission_handler: ^11.3.1
+  # Storage
   path_provider: ^2.1.5
   path: ^1.9.0
-  shared_preferences: ^2.3.3
-  device_info_plus: ^11.2.0
-  package_info_plus: ^8.1.2
 
-  # Built-in browser (kept — core feature for non-YouTube platforms)
-  webview_flutter: ^4.10.0
-  html: ^0.15.4
-
-  # Media players (kept — required for the value proposition)
+  # Media players
   video_player: ^2.9.2
   chewie: ^1.8.5
   just_audio: ^0.9.43
   audio_session: ^0.1.21
 
-  # URL launcher (for opening external links)
-  url_launcher: ^6.3.1
+  # Image caching (fixes performance issue with Image.network)
+  cached_network_image: ^3.4.1
 
   # Collection (firstWhereOrNull etc.)
   collection: ^1.18.0

@@ -70,7 +70,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
             Expanded(
               child: TabBarView(
                 controller: _tab,
-                children: [_list(ref.watch(videosProvider)), _list(ref.watch(musicProvider))],
+                children: [
+                  _list(ref.watch(videosProvider), isAudio: false),
+                  _list(ref.watch(musicProvider), isAudio: true),
+                ],
               ),
             ),
           ],
@@ -79,7 +82,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     );
   }
 
-  Widget _list(AsyncValue<List<dynamic>> async) {
+  Widget _list(AsyncValue<List<dynamic>> async, {required bool isAudio}) {
     return async.when(
       loading: () => const Center(child: CupertinoActivityIndicator(radius: 14)),
       error: (e, _) => Center(child: Text('خطأ: $e', style: const TextStyle(color: Color(0xFFFF3B30)))),
@@ -108,7 +111,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
             return MediaRow(
               item: item,
               onTap: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(builder: (_) => PlayerScreen(filePath: item.sourceUrl, title: item.title)),
+                MaterialPageRoute<void>(builder: (_) => PlayerScreen(
+                  filePath: item.sourceUrl,
+                  title: item.title,
+                  isAudio: isAudio,
+                )),
               ),
               trailing: Icon(CupertinoIcons.play_circle, size: 28, color: const Color(0xFF007AFF).withValues(alpha: 0.7)),
             );

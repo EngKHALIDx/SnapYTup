@@ -5,16 +5,28 @@ import 'package:path_provider/path_provider.dart';
 import '../models/media_item.dart';
 
 class LibraryService {
+  /// Asynchronously list files in the library folder.
+  ///
+  /// FIX: previously used `dir.listSync()` which blocks the UI thread.
+  /// Now uses async `dir.list()` so the UI doesn't freeze on large libraries.
+  /// FIX: sort order was Z→A (reversed); now A→Z as users expect.
   Future<List<MediaItem>> list({bool audio = false}) async {
-    final base = await getExternalStorageDirectory() ?? await getApplicationDocumentsDirectory();
+    final base = await getExternalStorageDirectory() ??
+        await getApplicationDocumentsDirectory();
     final sub = audio ? 'Music' : 'Videos';
     final dir = Directory(p.join(base.path, 'MediaGrab', sub));
     if (!dir.existsSync()) return [];
     final exts = audio ? ['.mp3', '.m4a', '.aac', '.wav'] : ['.mp4', '.webm', '.mkv'];
-    return dir.listSync().whereType<File>().where((f) {
-      final lower = f.path.toLowerCase();
-      return exts.any((e) => lower.endsWith(e));
-    }).map((f) {
+
+    final files = <File>[];
+    await for (final entity in dir.list()) {
+      if (entity is! File) continue;
+      final lower = entity.path.toLowerCase();
+      if (!exts.any((e) => lower.endsWith(e))) continue;
+      files.add(entity);
+    }
+
+    final items = files.map((f) {
       final name = p.basenameWithoutExtension(f.path);
       return MediaItem(
         id: f.path,
@@ -24,7 +36,10 @@ class LibraryService {
         streamUrl: f.path,
       );
     }).toList()
-      ..sort((a, b) => b.title.compareTo(a.title));
+      // Sort A→Z (was reversed Z→A before).
+      ..sort((a, b) => a.title.compareTo(b.title));
+
+    return items;
   }
 }
 

@@ -27,18 +27,27 @@ class DownloadTask {
   String? error;
   DateTime? startTime;
   DateTime? endTime;
+  /// Bytes already on disk before the current download session started.
+  /// Used so the speed calculation doesn't artificially inflate after
+  /// a resume (which previously counted pre-resume bytes as if they
+  /// were downloaded in 0 seconds).
+  int baseBytes = 0;
 
   bool get isActive => state == DownloadState.queued || state == DownloadState.running;
   bool get canRetry => state == DownloadState.failed;
   bool get isCompleted => state == DownloadState.completed;
 
   /// Speed in bytes/sec (null if unknown).
+  /// FIX: only counts bytes downloaded THIS session (downloadedBytes - baseBytes)
+  /// so the speed doesn't spike after a resume.
   int? get speedBps {
     final s = startTime;
     if (s == null) return null;
     final elapsed = DateTime.now().difference(s).inSeconds;
     if (elapsed <= 0) return null;
-    return downloadedBytes ~/ elapsed;
+    final sessionBytes = downloadedBytes - baseBytes;
+    if (sessionBytes <= 0) return null;
+    return sessionBytes ~/ elapsed;
   }
 
   /// ETA in seconds (null if unknown).

@@ -1,3 +1,5 @@
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../models/media_item.dart';
 
@@ -9,17 +11,21 @@ class Thumbnail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final placeholderColor = isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA);
     return ClipRRect(
       borderRadius: BorderRadius.circular(radius),
       child: url == null
-          ? Container(color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA))
-          : Image.network(
-              url!,
+          ? Container(color: placeholderColor)
+          : CachedNetworkImage(
+              imageUrl: url!,
               fit: BoxFit.cover,
-              loadingBuilder: (_, child, p) =>
-                  p == null ? child : Container(color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA)),
-              errorBuilder: (_, __, ___) =>
-                  Container(color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA)),
+              placeholder: (_, __) => Container(color: placeholderColor),
+              errorWidget: (_, __, ___) => Container(
+                color: placeholderColor,
+                child: Icon(CupertinoIcons.film,
+                    color: isDark ? const Color(0xFF8E8E93) : const Color(0xFF8E8E93),
+                    size: 24),
+              ),
             ),
     );
   }

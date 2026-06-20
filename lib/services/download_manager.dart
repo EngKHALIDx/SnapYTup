@@ -107,13 +107,20 @@ class DownloadManager extends StateNotifier<List<DownloadTask>> {
   }
 
   /// Retry a failed/canceled task.
+  /// FIX: delete the partial file before retrying so the download starts
+  /// fresh (was previously keeping the partial file, which caused the UI
+  /// to show 0% then jump to the real % when the first byte arrived).
   void retry(String id) {
     final t = _find(id);
     if (t == null || !t.canRetry) return;
+    // Delete partial file so retry starts fresh.
+    final file = File(t.savePath);
+    if (file.existsSync()) file.deleteSync();
     t
       ..progress = 0
       ..downloadedBytes = 0
       ..totalBytes = 0
+      ..baseBytes = 0
       ..error = null;
     _runIfSlot(t);
   }
@@ -162,6 +169,12 @@ class DownloadManager extends StateNotifier<List<DownloadTask>> {
     final canceler = CancelToken();
     _cancelers[task.id] = canceler;
     _activeCount++;
+    // Record the bytes already on disk as the "base" for this session,
+    // so speed calculations only count newly-downloaded bytes (not the
+    // pre-resume bytes that would otherwise look like they downloaded
+    // in 0 seconds).
+    final existingFile = File(task.savePath);
+    task.baseBytes = existingFile.existsSync() ? await existingFile.length() : 0;
     task
       ..state = DownloadState.running
       ..startTime = DateTime.now()
@@ -200,6 +213,13 @@ class DownloadManager extends StateNotifier<List<DownloadTask>> {
 
   /// Download with retry: if the URL returns 403 (expired), refresh
   /// qualities from YouTubeService and try again with the new URL.
+  ///
+  /// CRITICAL FIX: previous version used `_dio.downloadUri` which opens
+  /// the destination file with `FileMode.write` (truncate). When we send
+  /// a `Range` header to resume, the server returns only the remaining
+  /// bytes, but Dio would erase the partial file before writing → corrupted
+  /// output. We now stream the response manually and append to the file
+  /// using `FileMode.append` when resuming.
   Future<void> _downloadWithRetry(DownloadTask task, CancelToken canceler, {required int maxRetries}) async {
     for (var attempt = 0; attempt <= maxRetries; attempt++) {
       try {
@@ -226,29 +246,86 @@ class DownloadManager extends StateNotifier<List<DownloadTask>> {
           headers['Range'] = 'bytes=$existingLength-';
         }
 
-        await _dio.downloadUri(
-          uri,
-          task.savePath,
+        // Stream the response manually so we can choose FileMode.append
+        // when resuming (instead of Dio's default FileMode.write which
+        // truncates the file).
+        final response = await _dio.get<ResponseBody>(
+          uri.toString(),
           cancelToken: canceler,
           options: Options(
             headers: headers,
+            responseType: ResponseType.stream,
             receiveTimeout: const Duration(minutes: 30),
             followRedirects: true,
             maxRedirects: 5,
           ),
-          onReceiveProgress: (received, total) {
-            final effectiveTotal = existingLength > 0 && total > 0
-                ? existingLength + total
-                : total;
-            task
-              ..downloadedBytes = existingLength + received
-              ..totalBytes = effectiveTotal
-              ..progress = effectiveTotal > 0
-                  ? (existingLength + received) / effectiveTotal
-                  : 0;
-            state = [...state];
-          },
         );
+
+        final statusCode = response.statusCode ?? 200;
+        final isPartialResponse = statusCode == 206;
+        // If server ignored our Range header and returned 200 with the full
+        // file, we must overwrite the partial file (not append).
+        final fileMode = (isPartialResponse && existingLength > 0)
+            ? FileMode.append
+            : FileMode.write;
+
+        // Determine the effective total size for progress calculation.
+        final contentLengthStr = response.headers.value('content-length') ?? '0';
+        final contentLength = int.tryParse(contentLengthStr) ?? 0;
+        final effectiveTotal = (isPartialResponse && existingLength > 0)
+            ? existingLength + contentLength
+            : contentLength;
+
+        // If we got a 200 (full file) but had a partial file on disk,
+        // reset progress so we don't double-count.
+        final baseBytes = (isPartialResponse && existingLength > 0)
+            ? existingLength
+            : 0;
+        if (!isPartialResponse) {
+          task
+            ..downloadedBytes = 0
+            ..totalBytes = effectiveTotal
+            ..progress = 0;
+          state = [...state];
+        } else {
+          task
+            ..downloadedBytes = baseBytes
+            ..totalBytes = effectiveTotal
+            ..progress = effectiveTotal > 0 ? baseBytes / effectiveTotal : 0;
+          state = [...state];
+        }
+
+        // Stream bytes to disk with throttled state updates.
+        final sink = file.openWrite(mode: fileMode);
+        var lastStateUpdate = DateTime.now();
+        var receivedThisSession = 0;
+        try {
+          await for (final chunk in response.data!.stream) {
+            sink.add(chunk);
+            receivedThisSession += chunk.length;
+            task.downloadedBytes = baseBytes + receivedThisSession;
+            task.progress = effectiveTotal > 0
+                ? task.downloadedBytes / effectiveTotal
+                : 0;
+
+            // Throttle state updates to ~5 per second to avoid UI jank.
+            final now = DateTime.now();
+            if (now.difference(lastStateUpdate).inMilliseconds >= 200) {
+              lastStateUpdate = now;
+              state = [...state];
+            }
+          }
+          await sink.flush();
+        } finally {
+          await sink.close();
+        }
+
+        // Final state update so the UI shows 100%.
+        task
+          ..downloadedBytes = effectiveTotal > 0 ? effectiveTotal : task.downloadedBytes
+          ..progress = 1.0
+          ..totalBytes = task.downloadedBytes;
+        state = [...state];
         return; // Success
       } on DioException catch (e) {
         // If 403 (URL expired) and this is a YouTube video, refresh URL and retry

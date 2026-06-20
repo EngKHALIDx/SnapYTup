@@ -82,6 +82,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                               focusNode: _focus,
                               textInputAction: TextInputAction.search,
                               onSubmitted: _search,
+                              onChanged: (_) => setState(() {}),
                               decoration: const InputDecoration(
                                 hintText: 'فيديو، فنان، أو رابط',
                                 border: InputBorder.none,

@@ -240,10 +240,11 @@ class _DownloadSheetState extends ConsumerState<DownloadSheet> {
   Future<void> _enqueue() async {
     final opt = _options![_selected];
 
-    // Show loading indicator while starting the download
+    // Show loading indicator while starting the download.
+    // FIX: barrierDismissible=true so user can cancel if it takes too long.
     showDialog<void>(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       builder: (_) => const Center(
         child: CircularProgressIndicator(color: Color(0xFF007AFF)),
       ),
