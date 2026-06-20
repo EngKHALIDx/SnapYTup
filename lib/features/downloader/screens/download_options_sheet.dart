@@ -8,11 +8,13 @@ import '../../../core/utils/format_utils.dart';
 import '../../../data/repositories/youtube_repository.dart';
 import 'download_queue_screen.dart';
 
-/// Bottom sheet that shows available download qualities for a YouTube video
-/// and lets the user enqueue a download.
+/// Snaptube-style bottom sheet for selecting download format & quality.
 ///
-/// For non-YouTube [MediaItem]s we assume `streamUrl` is already set and offer
-/// a single "Direct download" row.
+/// Matches the actual Snaptube UI from the user's screenshot:
+/// - Title bar with "Download from YouTube" + close arrow
+/// - Vertical list of radio-button options
+/// - Each row: [badge: صوتي/فيديو] [format name + bitrate/resolution] [size] [quality description]
+/// - Bottom: "Previous downloads" link + "Install" button
 class DownloadOptionsSheet extends ConsumerStatefulWidget {
   const DownloadOptionsSheet({super.key, required this.item});
 
@@ -26,7 +28,7 @@ class _DownloadOptionsSheetState extends ConsumerState<DownloadOptionsSheet> {
   List<StreamQualityOption>? _qualities;
   bool _loading = true;
   String? _error;
-  bool _showMoreFormats = false;
+  int _selectedIndex = 0;
 
   @override
   void initState() {
@@ -36,7 +38,6 @@ class _DownloadOptionsSheetState extends ConsumerState<DownloadOptionsSheet> {
 
   Future<void> _load() async {
     if (widget.item.platform != MediaPlatform.youtube) {
-      // Direct URL already set — skip the qualities fetch.
       setState(() {
         _qualities = [];
         _loading = false;
@@ -62,41 +63,105 @@ class _DownloadOptionsSheetState extends ConsumerState<DownloadOptionsSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return DraggableScrollableSheet(
-      initialChildSize: 0.55,
-      minChildSize: 0.3,
-      maxChildSize: 0.9,
-      expand: false,
-      builder: (context, scrollController) => Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkBg : AppColors.lightBg,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      child: DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.3,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (context, controller) => Column(
           children: [
-            const SizedBox(height: 8),
+            // Header — Snaptube style
             Container(
-              width: 36,
-              height: 4,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               decoration: BoxDecoration(
-                color: AppColors.darkBorder,
-                borderRadius: BorderRadius.circular(2),
+                color: isDark ? AppColors.darkBg : AppColors.lightBg,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _sheetTitle(),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? Colors.white : AppColors.labelPrimary,
+                      ),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => Navigator.of(context).pop(),
+                    child: Icon(Icons.close,
+                        size: 22,
+                        color: isDark ? AppColors.labelSecondaryDark : AppColors.labelSecondary),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 12),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                widget.item.title,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-              ),
-            ),
-            const SizedBox(height: 8),
+            const Divider(height: 1),
+            // Body
             Expanded(
-              child: _buildBody(scrollController),
+              child: _buildBody(controller),
+            ),
+            // Footer — Snaptube style
+            const Divider(height: 1),
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkBg : AppColors.lightBg,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Previous downloads link
+                  Center(
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const DownloadQueueScreen(),
+                          ),
+                        );
+                      },
+                      child: Text(
+                        'التنزيلات السابقة',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: isDark ? AppColors.labelSecondaryDark : AppColors.labelSecondary,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Install button (Snaptube style)
+                  FilledButton(
+                    onPressed: _loading || _qualities == null
+                        ? null
+                        : () => _enqueueSelected(),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.4),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                    ),
+                    child: const Text(
+                      'تثبيت',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -104,142 +169,176 @@ class _DownloadOptionsSheetState extends ConsumerState<DownloadOptionsSheet> {
     );
   }
 
+  String _sheetTitle() {
+    switch (widget.item.platform) {
+      case MediaPlatform.youtube:
+        return 'التحميل من يوتيوب';
+      case MediaPlatform.tiktok:
+        return 'التحميل من تيك توك';
+      case MediaPlatform.instagram:
+        return 'التحميل من انستغرام';
+      case MediaPlatform.facebook:
+        return 'التحميل من فيسبوك';
+      case MediaPlatform.twitter:
+        return 'التحميل من تويتر';
+      default:
+        return 'تحميل';
+    }
+  }
+
   Widget _buildBody(ScrollController controller) {
-    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+    }
     if (_error != null) {
       return Center(
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(24),
           child: Text(
-            'Failed to load qualities: $_error',
+            'Failed to load: $_error',
             textAlign: TextAlign.center,
-            style: const TextStyle(color: AppColors.error),
+            style: const TextStyle(color: AppColors.systemRed),
           ),
         ),
       );
     }
 
     final qualities = _qualities ?? [];
+    final options = <_DownloadOption>[];
 
-    // Non-YouTube case: a single direct-download row.
     if (widget.item.platform != MediaPlatform.youtube) {
-      return ListView(
-        controller: controller,
-        padding: const EdgeInsets.all(16),
-        children: [
-          _SectionLabel(icon: Icons.movie, text: 'Video (MP4)', color: AppColors.primary),
-          _OptionTile(
-            leading: const Icon(Icons.movie),
-            title: 'Direct download',
-            subtitle: 'Best available quality',
-            onTap: () => _enqueue(
-              streamUrl: widget.item.streamUrl!,
-              quality: 'video',
-              format: 'mp4',
-              extractAudio: false,
-            ),
-          ),
-          const SizedBox(height: 12),
-          _SectionLabel(icon: Icons.music_note, text: 'Audio (MP3 / M4A)', color: AppColors.secondary),
-          _OptionTile(
-            leading: const Icon(Icons.music_note),
-            title: 'Direct download',
-            subtitle: 'Audio only',
-            onTap: () => _enqueue(
-              streamUrl: widget.item.streamUrl!,
-              quality: 'audio',
-              format: 'mp4',
-              extractAudio: true,
-            ),
-          ),
-        ],
-      );
+      // Direct download case
+      options.add(_DownloadOption(
+        type: OptionType.video,
+        format: 'MP4',
+        bitrate: '',
+        sizeBytes: null,
+        qualityDescription: 'أفضل جودة',
+        streamUrl: widget.item.streamUrl!,
+      ));
+      options.add(_DownloadOption(
+        type: OptionType.audio,
+        format: 'MP3',
+        bitrate: '128K',
+        sizeBytes: null,
+        qualityDescription: 'صوت عالي الجودة',
+        streamUrl: widget.item.streamUrl!,
+      ));
+    } else {
+      // YouTube — split by type
+      for (final q in qualities) {
+        if (q.isAudioOnly) {
+          options.add(_DownloadOption(
+            type: OptionType.audio,
+            format: q.container.toUpperCase() == 'MP4' ? 'M4A' : q.container.toUpperCase(),
+            bitrate: q.label.replaceAll('Audio ', ''),
+            sizeBytes: q.sizeBytes,
+            qualityDescription: _audioQualityDescription(q.label),
+            streamUrl: q.url,
+          ));
+        } else {
+          options.add(_DownloadOption(
+            type: OptionType.video,
+            format: 'MP4',
+            bitrate: q.label,
+            sizeBytes: q.sizeBytes,
+            qualityDescription: _videoQualityDescription(q.label),
+            streamUrl: q.url,
+          ));
+        }
+      }
     }
 
-    // YouTube case: split into Video and Audio groups (Snaptube pattern).
-    final videoQualities = qualities.where((q) => !q.isAudioOnly).toList();
-    final audioQualities = qualities.where((q) => q.isAudioOnly).toList();
-
-    return StatefulBuilder(
-      builder: (context, setState) {
-        return ListView(
-          controller: controller,
-          padding: const EdgeInsets.all(16),
-          children: [
-            // Video group
-            _SectionLabel(icon: Icons.movie, text: 'Video (MP4)', color: AppColors.primary),
-            for (final q in (_showMoreFormats ? videoQualities : videoQualities.take(4)))
-              _OptionTile(
-                leading: const Icon(Icons.movie_outlined),
-                title: q.label,
-                subtitle: FormatUtils.bytes(q.sizeBytes),
-                onTap: () => _enqueue(
-                  streamUrl: q.url,
-                  quality: q.label,
-                  format: 'mp4',
-                  extractAudio: false,
-                ),
-              ),
-            // Audio group
-            const SizedBox(height: 12),
-            _SectionLabel(icon: Icons.music_note, text: 'Audio (MP3 / M4A)', color: AppColors.secondary),
-            for (final q in (_showMoreFormats ? audioQualities : audioQualities.take(3)))
-              _OptionTile(
-                leading: const Icon(Icons.music_note_outlined),
-                title: q.label,
-                subtitle: FormatUtils.bytes(q.sizeBytes),
-                onTap: () => _enqueue(
-                  streamUrl: q.url,
-                  quality: q.label,
-                  format: q.isAudioOnly ? 'm4a' : 'mp4',
-                  extractAudio: q.isAudioOnly,
-                ),
-              ),
-            // "More Formats" expander (Snaptube pattern)
-            const SizedBox(height: 8),
-            Center(
-              child: TextButton.icon(
-                onPressed: () => setState(() => _showMoreFormats = !_showMoreFormats),
-                icon: Icon(_showMoreFormats ? Icons.expand_less : Icons.expand_more),
-                label: Text(_showMoreFormats ? 'Show less' : 'More Formats'),
-              ),
-            ),
-            // Subtitles placeholder
-            const Divider(),
-            _OptionTile(
-              leading: const Icon(Icons.subtitles_outlined, color: AppColors.info),
-              title: 'Subtitles / CC',
-              subtitle: 'Pick subtitle language',
-              onTap: () {
-                Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('No subtitles available for this video.')),
-                );
-              },
-            ),
-          ],
+    return ListView.separated(
+      controller: controller,
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemCount: options.length,
+      separatorBuilder: (_, __) => const Divider(height: 1, indent: 56),
+      itemBuilder: (context, i) {
+        final opt = options[i];
+        final isSelected = i == _selectedIndex;
+        return _OptionRow(
+          option: opt,
+          isSelected: isSelected,
+          onTap: () => setState(() => _selectedIndex = i),
         );
       },
     );
   }
 
-  Future<void> _enqueue({
-    required String streamUrl,
-    required String quality,
-    required String format,
-    required bool extractAudio,
-  }) async {
+  String _audioQualityDescription(String label) {
+    if (label.contains('320K')) return 'جودة عالية جداً';
+    if (label.contains('160K') || label.contains('128K')) return 'جودة عالية';
+    if (label.contains('70K') || label.contains('96K')) return 'جودة متوسطة';
+    return 'جودة منخفضة';
+  }
+
+  String _videoQualityDescription(String label) {
+    if (label.contains('2160') || label.contains('1440')) return 'جودة عالية جداً (HD)';
+    if (label.contains('1080')) return 'جودة عالية (HD)';
+    if (label.contains('720')) return 'جودة عالية';
+    if (label.contains('480')) return 'جودة متوسطة';
+    if (label.contains('360')) return 'جودة متوسطة';
+    if (label.contains('240')) return 'جودة منخفضة';
+    return 'جودة منخفضة';
+  }
+
+  Future<void> _enqueueSelected() async {
+    final qualities = _qualities ?? [];
+    final options = <_DownloadOption>[];
+
+    if (widget.item.platform != MediaPlatform.youtube) {
+      options.add(_DownloadOption(
+        type: OptionType.video,
+        format: 'MP4',
+        bitrate: '',
+        sizeBytes: null,
+        qualityDescription: '',
+        streamUrl: widget.item.streamUrl!,
+      ));
+      options.add(_DownloadOption(
+        type: OptionType.audio,
+        format: 'MP3',
+        bitrate: '128K',
+        sizeBytes: null,
+        qualityDescription: '',
+        streamUrl: widget.item.streamUrl!,
+      ));
+    } else {
+      for (final q in qualities) {
+        if (q.isAudioOnly) {
+          options.add(_DownloadOption(
+            type: OptionType.audio,
+            format: q.container.toUpperCase() == 'MP4' ? 'M4A' : q.container.toUpperCase(),
+            bitrate: q.label.replaceAll('Audio ', ''),
+            sizeBytes: q.sizeBytes,
+            qualityDescription: '',
+            streamUrl: q.url,
+          ));
+        } else {
+          options.add(_DownloadOption(
+            type: OptionType.video,
+            format: 'MP4',
+            bitrate: q.label,
+            sizeBytes: q.sizeBytes,
+            qualityDescription: '',
+            streamUrl: q.url,
+          ));
+        }
+      }
+    }
+
+    if (_selectedIndex >= options.length) return;
+    final opt = options[_selectedIndex];
     final mgr = ref.read(downloadManagerProvider.notifier);
     await mgr.enqueue(
-      media: widget.item.copyWith(streamUrl: streamUrl),
-      quality: quality,
-      format: format,
-      extractAudio: extractAudio,
+      media: widget.item.copyWith(streamUrl: opt.streamUrl),
+      quality: opt.bitrate.isEmpty ? opt.format : opt.bitrate,
+      format: opt.format.toLowerCase(),
+      extractAudio: opt.type == OptionType.audio,
     );
     if (!mounted) return;
     Navigator.of(context).pop();
-    // Open the live Download Manager so the user sees real-time progress
-    // (instead of the previously-confusing "Download queued." toast).
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => const DownloadQueueScreen(),
@@ -248,58 +347,141 @@ class _DownloadOptionsSheetState extends ConsumerState<DownloadOptionsSheet> {
   }
 }
 
-class _OptionTile extends StatelessWidget {
-  const _OptionTile({
-    required this.leading,
-    required this.title,
-    required this.subtitle,
+enum OptionType { audio, video }
+
+class _DownloadOption {
+  const _DownloadOption({
+    required this.type,
+    required this.format,
+    required this.bitrate,
+    required this.sizeBytes,
+    required this.qualityDescription,
+    required this.streamUrl,
+  });
+  final OptionType type;
+  final String format;
+  final String bitrate;
+  final int? sizeBytes;
+  final String qualityDescription;
+  final String streamUrl;
+}
+
+/// One row in the download options list. Matches Snaptube's layout exactly:
+/// [radio] [badge صوتي/فيديو] [format/bitrate] [size] [quality description]
+class _OptionRow extends StatelessWidget {
+  const _OptionRow({
+    required this.option,
+    required this.isSelected,
     required this.onTap,
   });
 
-  final Widget leading;
-  final String title;
-  final String subtitle;
+  final _DownloadOption option;
+  final bool isSelected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: ListTile(
-        leading: leading,
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: Text(subtitle),
-        trailing: const Icon(Icons.download_for_offline, color: AppColors.primary),
-        onTap: onTap,
-      ),
-    );
-  }
-}
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isAudio = option.type == OptionType.audio;
+    final badgeColor = isAudio ? AppColors.systemRed : AppColors.systemBlue;
 
-/// Section label inside the download sheet (e.g. "Video (MP4)", "Audio (MP3)").
-class _SectionLabel extends StatelessWidget {
-  const _SectionLabel({required this.icon, required this.text, required this.color});
-  final IconData icon;
-  final String text;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 4, bottom: 4),
-      child: Row(
-        children: [
-          Icon(icon, color: color, size: 18),
-          const SizedBox(width: 6),
-          Text(
-            text,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.bold,
-              color: color,
-              letterSpacing: 0.5,
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            // Radio button (Snaptube style: white outline, blue fill)
+            Container(
+              width: 22,
+              height: 22,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isSelected ? AppColors.primary : (isDark ? Colors.white54 : Colors.black45),
+                  width: 2,
+                ),
+              ),
+              child: isSelected
+                  ? Center(
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    )
+                  : null,
             ),
-          ),
-        ],
+            const SizedBox(width: 14),
+            // Type badge (Snaptube style: "صوتي" red or "فيديو" blue)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: badgeColor,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                isAudio ? 'صوتي' : 'فيديو',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            // Format name + bitrate + size
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        option.format,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: isDark ? Colors.white : AppColors.labelPrimary,
+                        ),
+                      ),
+                      if (option.bitrate.isNotEmpty) ...[
+                        const SizedBox(width: 6),
+                        Text(
+                          '(${option.bitrate})',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: isDark ? AppColors.labelSecondaryDark : AppColors.labelSecondary,
+                          ),
+                        ),
+                      ],
+                      const Spacer(),
+                      if (option.sizeBytes != null)
+                        Text(
+                          FormatUtils.bytes(option.sizeBytes),
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: isDark ? AppColors.labelSecondaryDark : AppColors.labelSecondary,
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    option.qualityDescription,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isDark ? AppColors.labelTertiaryDark : AppColors.labelTertiary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

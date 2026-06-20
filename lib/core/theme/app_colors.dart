@@ -9,31 +9,31 @@ import 'package:flutter/material.dart';
 class AppColors {
   AppColors._();
 
-  // Brand (kept distinct from Snaptube's orange-red to avoid trademark issues)
-  static const Color primary = Color(0xFF007AFF);       // iOS Blue
-  static const Color primaryDark = Color(0xFF0A84FF);   // dark-mode blue
-  static const Color accent = Color(0xFFFF9500);        // iOS Orange
-  static const Color secondary = Color(0xFF5856D6);     // iOS Indigo
-  static const Color tertiary = Color(0xFFAF52DE);      // iOS Purple
+  // Brand — Snaptube-inspired bright blue (#2196F3)
+  static const Color primary = Color(0xFF2196F3);       // Snaptube blue
+  static const Color primaryDark = Color(0xFF1976D2);   // dark-mode blue
+  static const Color accent = Color(0xFFFF5252);        // accent red (audio badges)
+  static const Color secondary = Color(0xFFFF5252);     // red for audio section
+  static const Color tertiary = Color(0xFF2196F3);      // blue for video section
 
   // Apple semantic colors
-  static const Color systemBlue = Color(0xFF007AFF);
+  static const Color systemBlue = Color(0xFF2196F3);
   static const Color systemGreen = Color(0xFF34C759);
   static const Color systemIndigo = Color(0xFF5856D6);
   static const Color systemOrange = Color(0xFFFF9500);
   static const Color systemPink = Color(0xFFFF2D55);
   static const Color systemPurple = Color(0xFFAF52DE);
-  static const Color systemRed = Color(0xFFFF3B30);
+  static const Color systemRed = Color(0xFFFF5252);
   static const Color systemTeal = Color(0xFF30B0C7);
   static const Color systemYellow = Color(0xFFFFCC00);
 
-  // Dark theme surfaces (Apple-style elevated dark)
-  static const Color darkBg = Color(0xFF000000);            // pure black (OLED-friendly)
-  static const Color darkSurface = Color(0xFF1C1C1E);       // grouped background
-  static const Color darkSurfaceAlt = Color(0xFF2C2C2E);    // grouped card
-  static const Color darkSurfaceElevated = Color(0xFF3A3A3C); // toolbar
-  static const Color darkBorder = Color(0xFF38383A);
-  static const Color darkSeparator = Color(0xFF545458);
+  // Dark theme surfaces (Snaptube-style dark — #121212 base, not pure black)
+  static const Color darkBg = Color(0xFF121212);            // Snaptube's background
+  static const Color darkSurface = Color(0xFF1E1E1E);       // slightly elevated
+  static const Color darkSurfaceAlt = Color(0xFF2C2C2C);    // cards
+  static const Color darkSurfaceElevated = Color(0xFF333333); // toolbar / badges
+  static const Color darkBorder = Color(0xFF333333);
+  static const Color darkSeparator = Color(0xFF333333);
 
   // Light theme surfaces
   static const Color lightBg = Color(0xFFF2F2F7);           // grouped background

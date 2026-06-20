@@ -8,8 +8,9 @@ import '../../../core/services/download_manager.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/format_utils.dart';
 
-/// iOS-style Download Manager: live progress, file size, speed, ETA,
-/// pause/resume/cancel/retry actions.
+/// Snaptube-style active downloads screen. Matches the user's screenshot:
+/// - Header: "تحميل (N)" with trash icon + pause-all
+/// - Each row: [icon] [title] [progress bar with % + speed] [circular thumbnail]
 class DownloadQueueScreen extends ConsumerWidget {
   const DownloadQueueScreen({super.key});
 
@@ -18,27 +19,36 @@ class DownloadQueueScreen extends ConsumerWidget {
     final tasks = ref.watch(downloadManagerProvider);
     final mgr = ref.read(downloadManagerProvider.notifier);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     final active = tasks.where((t) => t.isActive).toList();
     final done = tasks.where((t) => !t.isActive).toList();
 
     return Scaffold(
+      backgroundColor: isDark ? AppColors.darkBg : AppColors.lightBg,
       appBar: AppBar(
-        title: const Text('Downloads'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: Text(
+          active.isEmpty ? 'التنزيلات' : 'تحميل (${active.length})',
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
+            color: isDark ? Colors.white : AppColors.labelPrimary,
+          ),
+        ),
         actions: [
-          if (tasks.any((t) => t.isActive))
+          if (active.isNotEmpty)
             IconButton(
-              icon: const Icon(CupertinoIcons.stop_circle),
-              tooltip: 'Cancel all',
+              icon: const Icon(CupertinoIcons.pause_circle, size: 26),
+              color: isDark ? Colors.white : AppColors.labelPrimary,
               onPressed: () {
-                for (final t in tasks.where((t) => t.isActive)) {
-                  mgr.cancel(t.id);
+                for (final t in active) {
+                  mgr.pause(t.id);
                 }
               },
             ),
           IconButton(
-            icon: const Icon(CupertinoIcons.trash),
-            tooltip: 'Clear finished',
+            icon: const Icon(CupertinoIcons.trash, size: 22),
+            color: isDark ? Colors.white : AppColors.labelPrimary,
             onPressed: () async {
               for (final t in tasks.where((t) => !t.isActive)) {
                 await mgr.remove(t.id);
@@ -49,21 +59,27 @@ class DownloadQueueScreen extends ConsumerWidget {
       ),
       body: tasks.isEmpty
           ? _buildEmpty(isDark)
-          : CupertinoScrollbar(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                children: [
-                  if (active.isNotEmpty) ...[
-                    _SectionHeader('Active', isDark),
-                    for (final t in active) _TaskCard(taskId: t.id),
-                  ],
-                  if (done.isNotEmpty) ...[
-                    if (active.isNotEmpty) const SizedBox(height: 16),
-                    _SectionHeader('Finished', isDark),
-                    for (final t in done) _TaskCard(taskId: t.id),
-                  ],
+          : ListView(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              children: [
+                for (final t in active) _ActiveTaskCard(taskId: t.id),
+                if (active.isNotEmpty && done.isNotEmpty)
+                  const Divider(height: 32, indent: 16, endIndent: 16),
+                if (done.isNotEmpty) ...[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                    child: Text(
+                      'التنزيلات السابقة',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? AppColors.labelSecondaryDark : AppColors.labelSecondary,
+                      ),
+                    ),
+                  ),
+                  for (final t in done) _FinishedTaskCard(taskId: t.id),
                 ],
-              ),
+              ],
             ),
     );
   }
@@ -80,19 +96,19 @@ class DownloadQueueScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'No Downloads',
+            'لا توجد تنزيلات',
             style: TextStyle(
-              fontSize: 20,
+              fontSize: 18,
               fontWeight: FontWeight.w600,
-              color: isDark ? AppColors.labelSecondaryDark : AppColors.labelSecondary,
+              color: isDark ? Colors.white : AppColors.labelPrimary,
             ),
           ),
           const SizedBox(height: 4),
           Text(
-            'Your downloads will appear here.',
+            'التنزيلات ستظهر هنا',
             style: TextStyle(
-              fontSize: 15,
-              color: isDark ? AppColors.labelTertiaryDark : AppColors.labelTertiary,
+              fontSize: 14,
+              color: isDark ? AppColors.labelSecondaryDark : AppColors.labelSecondary,
             ),
           ),
         ],
@@ -101,30 +117,10 @@ class DownloadQueueScreen extends ConsumerWidget {
   }
 }
 
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader(this.text, this.isDark);
-  final String text;
-  final bool isDark;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 6),
-      child: Text(
-        text.toUpperCase(),
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w400,
-          color: isDark ? AppColors.labelSecondaryDark : AppColors.labelSecondary,
-          letterSpacing: 0.4,
-        ),
-      ),
-    );
-  }
-}
-
-class _TaskCard extends ConsumerWidget {
-  const _TaskCard({required this.taskId});
+/// Active download row — Snaptube style:
+/// [icon] [title + progress bar + % + speed] [circular thumbnail]
+class _ActiveTaskCard extends ConsumerWidget {
+  const _ActiveTaskCard({required this.taskId});
   final String taskId;
 
   @override
@@ -132,33 +128,30 @@ class _TaskCard extends ConsumerWidget {
     final tasks = ref.watch(downloadManagerProvider);
     final task = tasks.firstWhereOrNull((t) => t.id == taskId);
     if (task == null) return const SizedBox.shrink();
-
-    final isActive = task.isActive;
-    final isFailed = task.status == DownloadStatus.failed;
-    final isCompleted = task.status == DownloadStatus.completed;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(14),
+        color: isDark ? AppColors.darkSurfaceAlt : AppColors.lightSurface,
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         children: [
-          // Icon
+          // Type icon
           Container(
-            width: 44,
-            height: 44,
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
-              color: (task.extractAudio ? AppColors.systemPurple : AppColors.systemPink)
+              color: (task.extractAudio ? AppColors.systemRed : AppColors.systemBlue)
                   .withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
               task.extractAudio ? CupertinoIcons.music_note : CupertinoIcons.film,
-              color: task.extractAudio ? AppColors.systemPurple : AppColors.systemPink,
-              size: 22,
+              color: task.extractAudio ? AppColors.systemRed : AppColors.systemBlue,
+              size: 20,
             ),
           ),
           const SizedBox(width: 12),
@@ -171,70 +164,155 @@ class _TaskCard extends ConsumerWidget {
                   task.media.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: isDark ? Colors.white : AppColors.labelPrimary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // Progress bar — Snaptube style: simple 4px blue bar
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(2),
+                  child: LinearProgressIndicator(
+                    value: task.progress,
+                    minHeight: 4,
+                    backgroundColor: isDark ? AppColors.darkBorder : AppColors.lightSurfaceAlt,
+                    valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+                  ),
                 ),
                 const SizedBox(height: 6),
-                if (isActive && task.totalBytes > 0) ...[
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(2),
-                    child: LinearProgressIndicator(
-                      value: task.progress,
-                      minHeight: 4,
-                      backgroundColor: AppColors.lightSurfaceAlt,
-                      valueColor: const AlwaysStoppedAnimation<Color>(AppColors.systemBlue),
+                Row(
+                  children: [
+                    Text(
+                      '${(task.progress * 100).round()}%',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDark ? AppColors.labelSecondaryDark : AppColors.labelSecondary,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    '${FormatUtils.bytes(task.downloadedBytes)} of ${FormatUtils.bytes(task.totalBytes)}'
-                    '${task.bytesPerSecond != null ? ' · ${FormatUtils.rate(task.bytesPerSecond)}' : ''}'
-                    '${task.etaSeconds != null ? ' · ${FormatUtils.eta(task.etaSeconds)} left' : ''}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Theme.of(context).brightness == Brightness.dark
-                          ? AppColors.labelSecondaryDark
-                          : AppColors.labelSecondary,
-                    ),
-                  ),
-                ] else if (isFailed) ...[
-                  Text(
-                    'Failed — ${task.error ?? "unknown error"}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12, color: AppColors.systemRed),
-                  ),
-                ] else ...[
-                  Text(
-                    isCompleted
-                        ? '${task.quality} · ${FormatUtils.bytes(task.totalBytes)}'
-                        : 'Queued',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isCompleted
-                          ? AppColors.systemGreen
-                          : (Theme.of(context).brightness == Brightness.dark
-                              ? AppColors.labelSecondaryDark
-                              : AppColors.labelSecondary),
-                    ),
-                  ),
-                ],
+                    const SizedBox(width: 12),
+                    if (task.bytesPerSecond != null)
+                      Text(
+                        FormatUtils.rate(task.bytesPerSecond),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    const Spacer(),
+                    if (task.etaSeconds != null)
+                      Text(
+                        FormatUtils.eta(task.etaSeconds),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isDark ? AppColors.labelSecondaryDark : AppColors.labelSecondary,
+                        ),
+                      ),
+                  ],
+                ),
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          // Action
-          if (isActive)
+          const SizedBox(width: 12),
+          // Circular thumbnail (Snaptube style — vinyl-record-style small circle)
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.darkSurfaceElevated,
+              border: Border.all(color: AppColors.primary.withValues(alpha: 0.3), width: 1.5),
+            ),
+            child: task.media.thumbnailUrl != null
+                ? ClipOval(
+                    child: Image.network(
+                      task.media.thumbnailUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Icon(
+                        task.extractAudio ? CupertinoIcons.music_note : CupertinoIcons.film,
+                        color: Colors.white54,
+                        size: 18,
+                      ),
+                    ),
+                  )
+                : Icon(
+                    task.extractAudio ? CupertinoIcons.music_note : CupertinoIcons.film,
+                    color: Colors.white54,
+                    size: 18,
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Finished download row — simpler than active.
+class _FinishedTaskCard extends ConsumerWidget {
+  const _FinishedTaskCard({required this.taskId});
+  final String taskId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tasks = ref.watch(downloadManagerProvider);
+    final task = tasks.firstWhereOrNull((t) => t.id == taskId);
+    if (task == null) return const SizedBox.shrink();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isFailed = task.status == DownloadStatus.failed;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurfaceAlt : AppColors.lightSurface,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            isFailed ? CupertinoIcons.exclamationmark_circle : CupertinoIcons.checkmark_circle_fill,
+            color: isFailed ? AppColors.systemRed : AppColors.systemGreen,
+            size: 22,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  task.media.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: isDark ? Colors.white : AppColors.labelPrimary,
+                  ),
+                ),
+                Text(
+                  isFailed
+                      ? 'فشل: ${task.error ?? ""}'
+                      : '${task.quality} · ${FormatUtils.bytes(task.totalBytes)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isFailed
+                        ? AppColors.systemRed
+                        : (isDark ? AppColors.labelSecondaryDark : AppColors.labelSecondary),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (task.canRetry)
             IconButton(
-              icon: const Icon(CupertinoIcons.pause_fill, size: 22),
-              onPressed: () => ref.read(downloadManagerProvider.notifier).pause(task.id),
-            )
-          else if (task.canRetry)
-            IconButton(
-              icon: const Icon(CupertinoIcons.refresh, size: 22),
+              icon: const Icon(CupertinoIcons.refresh, size: 20),
+              color: AppColors.primary,
               onPressed: () => ref.read(downloadManagerProvider.notifier).retry(task.id),
-            )
-          else if (isCompleted)
-            const Icon(CupertinoIcons.checkmark_circle_fill, color: AppColors.systemGreen, size: 26),
+            ),
         ],
       ),
     );

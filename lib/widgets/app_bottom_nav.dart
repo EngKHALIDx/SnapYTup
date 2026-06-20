@@ -14,11 +14,9 @@ class AppBottomNav extends ConsumerWidget {
   const AppBottomNav({super.key});
 
   static const _items = <_TabItem>[
-    _TabItem(icon: CupertinoIcons.house_fill, label: 'Home'),
-    _TabItem(icon: CupertinoIcons.search, label: 'Search'),
-    _TabItem(icon: CupertinoIcons.globe, label: 'Browser'),
-    _TabItem(icon: CupertinoIcons.square_stack_fill, label: 'Library'),
-    _TabItem(icon: CupertinoIcons.person_crop_circle, label: 'Profile'),
+    _TabItem(icon: CupertinoIcons.search, label: 'بحث'),
+    _TabItem(icon: CupertinoIcons.arrow_down_circle_fill, label: 'تنزيلات'),
+    _TabItem(icon: CupertinoIcons.settings, label: 'إعدادات'),
   ];
 
   @override
