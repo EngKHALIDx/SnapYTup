@@ -170,6 +170,17 @@ class DownloadManager extends StateNotifier<List<DownloadTask>> {
     state = [...state];
 
     try {
+      // Defensive check: streamUrl must be a valid non-empty URL.
+      final urlStr = task.media.streamUrl;
+      if (urlStr == null || urlStr.isEmpty) {
+        throw ArgumentError('رابط التنزيل فارغ');
+      }
+      // Parse early so we get a clear error if it's malformed.
+      final uri = Uri.parse(urlStr);
+      if (!uri.hasScheme || (!uri.scheme.startsWith('http'))) {
+        throw ArgumentError('رابط التنزيل غير صالح');
+      }
+
       final file = File(task.savePath);
       // For resume: if the partial file exists, send Range header.
       final existingLength = file.existsSync() ? await file.length() : 0;
@@ -178,8 +189,8 @@ class DownloadManager extends StateNotifier<List<DownloadTask>> {
         headers['Range'] = 'bytes=$existingLength-';
       }
 
-      await _dio.download(
-        task.media.streamUrl!,
+      await _dio.downloadUri(
+        uri,
         task.savePath,
         cancelToken: canceler,
         options: Options(headers: headers, receiveTimeout: const Duration(minutes: 30)),
@@ -209,6 +220,10 @@ class DownloadManager extends StateNotifier<List<DownloadTask>> {
           ..state = DownloadState.failed
           ..error = _dioError(e);
       }
+    } on ArgumentError catch (e) {
+      task
+        ..state = DownloadState.failed
+        ..error = e.message?.toString() ?? 'رابط غير صالح';
     } catch (e) {
       task
         ..state = DownloadState.failed
