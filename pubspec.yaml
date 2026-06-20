@@ -66,11 +66,13 @@ dependencies:
   # Clipboard watcher — auto-detect copied URLs (Snaptube feature)
   # (Native dart:io clipboard API used as fallback when this package isn't available)
 
-  # Floating window / PiP — Snaptube-style floating player
-  floating: ^3.0.0
+  # Floating window / PiP — handled natively via Android's PictureInPicture
+  # API in MainActivity.kt (no extra Flutter package needed).
+  # The previous `floating: ^3.0.0` package used the deprecated Flutter v1
+  # `Registrar` API and broke the build on Flutter 3.44+.
 
-  # Receive sharing intents (share-to-app)
-  receive_sharing_intent: ^1.8.0
+  # Receive sharing intents (share-to-app) — handled via AndroidManifest
+  # <intent-filter> SEND action; no Dart-side plugin needed for the MVP.
 
   # Localizations / 49 languages
   flutter_localizations:
