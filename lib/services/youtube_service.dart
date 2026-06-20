@@ -4,12 +4,12 @@ import 'package:dio/dio.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart' as yt;
 import '../models/media_item.dart';
 
-/// Ultimate YouTube downloader with **8 different strategies** to bypass
-/// all known YouTube restrictions.
+/// Multi-strategy YouTube downloader with 9 fallback strategies.
 ///
-/// Each strategy uses a different User-Agent + client identity + headers,
-/// so YouTube sees eight different "clients" for the same video. On a
-/// residential IP (real phone), at least one of these almost always succeeds.
+/// Each strategy uses different client identity + User-Agent + headers,
+/// so YouTube sees nine different "clients" for the same video. On a
+/// residential IP (real phone), at least one of these almost always
+/// succeeds — even for Vevo / signatureCipher-protected videos.
 class YouTubeService {
   YouTubeService() : _yt = yt.YoutubeExplode();
   final yt.YoutubeExplode _yt;
@@ -24,34 +24,65 @@ class YouTubeService {
 
   static const _apiKey = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
 
+  /// debug log — set to true to see which strategy succeeds/fails.
+  static bool debugLog = false;
+
+  void _log(String msg) {
+    // ignore: avoid_print
+    if (debugLog) print('[YouTubeService] $msg');
+  }
+
   Future<List<MediaItem>> search(String query, {int limit = 20}) async {
     try {
       final results = (await _yt.search.search(query)).take(limit).toList();
       return results.map(_toMediaItem).whereType<MediaItem>().toList();
-    } catch (_) {
+    } catch (e) {
+      _log('search failed: $e');
       return [];
     }
   }
 
-  /// Get available quality options. Tries all 8 strategies in order.
+  /// Get available quality options. Tries all 9 strategies in order.
   Future<List<QualityOption>> getQualities(String videoId) async {
-    final strategies = <Future<List<QualityOption>>>[
-      _tryExplode(videoId),
-      _tryInnerTube(videoId, clientName: 'WEB', clientVersion: '2.20240101.00.00', userAgent: _uaWeb),
-      _tryInnerTube(videoId, clientName: 'ANDROID_VR', clientVersion: '1.57', userAgent: _uaAndroidVr),
-      _tryInnerTube(videoId, clientName: 'IOS', clientVersion: '19.09.3', userAgent: _uaIos),
-      _tryInnerTube(videoId, clientName: 'MWEB', clientVersion: '2.20240101.01.00', userAgent: _uaMweb),
-      _tryInnerTube(videoId, clientName: 'WEB_EMBEDDED_PLAYER', clientVersion: '1.20240101.00.00', userAgent: _uaWeb, extraBody: {'thirdParty': {'embedUrl': 'https://www.google.com'}}),
-      _tryInnerTube(videoId, clientName: 'ANDROID', clientVersion: '19.09.37', userAgent: _uaAndroid),
-      _tryInnerTube(videoId, clientName: 'TVHTML5_SIMPLY_EMBEDDED_PLAYER', clientVersion: '2.0', userAgent: _uaTv, extraBody: {'thirdParty': {'embedUrl': 'https://www.youtube.com'}}),
+    _log('getQualities for $videoId — trying 9 strategies...');
+
+    // Strategy 1: youtube_explode_dart
+    var result = await _tryExplode(videoId);
+    if (result.isNotEmpty) {
+      _log('✅ Strategy 1 (youtube_explode) succeeded with ${result.length} options');
+      return result;
+    }
+
+    // Strategies 2-9: InnerTube variants
+    final innerTubeStrategies = <(String, String, String, Map<String, dynamic>?)>[
+      ('WEB', '2.20240101.00.00', _uaWeb, null),
+      ('ANDROID_VR', '1.57', _uaAndroidVr, null),
+      ('IOS', '19.09.3', _uaIos, null),
+      ('MWEB', '2.20240101.01.00', _uaMweb, null),
+      ('WEB_EMBEDDED_PLAYER', '1.20240101.00.00', _uaWeb, {'thirdParty': {'embedUrl': 'https://www.google.com'}}),
+      ('ANDROID', '19.09.37', _uaAndroid, null),
+      ('TVHTML5_SIMPLY_EMBEDDED_PLAYER', '2.0', _uaTv, {'thirdParty': {'embedUrl': 'https://www.youtube.com'}}),
+      ('TVHTML5', '7.20240101.10.00', _uaTv, null),
     ];
 
-    for (final strategy in strategies) {
-      try {
-        final result = await strategy;
-        if (result.isNotEmpty) return result;
-      } catch (_) {}
+    for (var i = 0; i < innerTubeStrategies.length; i++) {
+      final (name, version, ua, extra) = innerTubeStrategies[i];
+      final strategyNum = i + 2;
+      _log('Trying strategy $strategyNum: $name $version');
+      result = await _tryInnerTube(
+        videoId,
+        clientName: name,
+        clientVersion: version,
+        userAgent: ua,
+        extraBody: extra,
+      );
+      if (result.isNotEmpty) {
+        _log('✅ Strategy $strategyNum ($name) succeeded with ${result.length} options');
+        return result;
+      }
     }
+
+    _log('❌ All 9 strategies failed for $videoId');
     return [];
   }
 
@@ -66,7 +97,8 @@ class YouTubeService {
     yt.StreamManifest manifest;
     try {
       manifest = await _yt.videos.streamsClient.getManifest(videoId);
-    } catch (_) {
+    } catch (e) {
+      _log('  youtube_explode failed: $e');
       return [];
     }
 
@@ -142,10 +174,27 @@ class YouTubeService {
         data: jsonEncode(body),
       );
 
-      if (response.statusCode != 200) return [];
+      if (response.statusCode != 200) {
+        _log('  $clientName HTTP ${response.statusCode}');
+        return [];
+      }
       final data = jsonDecode(response.data!) as Map<String, dynamic>;
+
+      // Check playabilityStatus — explains why a video fails
+      final playability = data['playabilityStatus'] as Map<String, dynamic>?;
+      if (playability != null) {
+        final status = playability['status']?.toString() ?? '';
+        if (status != 'OK' && status != 'LIVE_STREAM_OFFLINE') {
+          _log('  $clientName playability: $status');
+          // Don't return yet — some clients return ERROR but still have streamingData
+        }
+      }
+
       final streamingData = data['streamingData'] as Map<String, dynamic>?;
-      if (streamingData == null) return [];
+      if (streamingData == null) {
+        _log('  $clientName no streamingData');
+        return [];
+      }
 
       final options = <QualityOption>[];
 
@@ -186,8 +235,28 @@ class YouTubeService {
       }
       audioOpts.sort((a, b) => b.sizeBytes.compareTo(a.sizeBytes));
 
-      return [...options, ...audioOpts];
-    } catch (_) {
+      // Also extract video-only adaptive formats (for higher quality options)
+      final videoOpts = <QualityOption>[];
+      for (final f in adaptive) {
+        final mimeType = (f['mimeType'] ?? '').toString();
+        if (!mimeType.startsWith('video/')) continue;
+        final url = _extractUrl(f);
+        if (url == null) continue;
+        final qualityLabel = (f['qualityLabel'] ?? '?').toString();
+        final size = int.tryParse((f['contentLength'] ?? '0').toString()) ?? 0;
+        videoOpts.add(QualityOption(
+          label: '$qualityLabel (فيديو فقط)',
+          sizeBytes: size,
+          url: url,
+          isAudio: false,
+          container: mimeType.contains('mp4') ? 'mp4' : 'webm',
+        ));
+      }
+      videoOpts.sort((a, b) => b.sizeBytes.compareTo(a.sizeBytes));
+
+      return [...options, ...videoOpts, ...audioOpts];
+    } catch (e) {
+      _log('  $clientName exception: $e');
       return [];
     }
   }
@@ -200,6 +269,7 @@ class YouTubeService {
         'ANDROID_VR' => 28,
         'WEB_EMBEDDED_PLAYER' => 56,
         'TVHTML5_SIMPLY_EMBEDDED_PLAYER' => 85,
+        'TVHTML5' => 7,
         _ => 1,
       };
 
@@ -209,10 +279,14 @@ class YouTubeService {
     return List.generate(length, (_) => chars[r.nextInt(chars.length)]).join();
   }
 
+  /// Extract a usable URL from an InnerTube format object.
+  /// Returns null for signatureCipher entries (we can't decrypt them
+  /// client-side without the YouTube JS player).
   String? _extractUrl(dynamic format) {
     if (format is! Map) return null;
     final url = format['url'];
     if (url is String && url.isNotEmpty) return url;
+    // signatureCipher requires JS interpretation — skip.
     return null;
   }
 

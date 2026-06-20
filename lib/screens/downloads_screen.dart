@@ -211,7 +211,7 @@ class DownloadsScreen extends ConsumerWidget {
                     isFailed
                         ? 'فشل: ${t.error ?? "خطأ غير معروف"}'
                         : '${t.quality} · ${t.format.toUpperCase()} · ${t.sizeText}',
-                    maxLines: 1,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                         fontSize: 12,

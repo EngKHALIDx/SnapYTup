@@ -13,7 +13,8 @@ class DownloadTask {
   });
 
   final String id;
-  final MediaItem media;
+  /// Mutable so we can refresh the stream URL when it expires (403).
+  MediaItem media;
   final String quality;
   final String format;
   final String savePath;

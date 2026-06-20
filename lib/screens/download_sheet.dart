@@ -28,10 +28,20 @@ class _DownloadSheetState extends ConsumerState<DownloadSheet> {
 
   Future<void> _load() async {
     if (widget.item.platform != Platform.youtube) {
+      // Non-YouTube platform: use streamUrl if available
+      final streamUrl = widget.item.streamUrl;
+      if (streamUrl == null || streamUrl.isEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _error = 'لا يوجد رابط مباشر لهذا الفيديو. استخدم المتصفح لفتحه.';
+          _loading = false;
+        });
+        return;
+      }
       setState(() {
         _options = [
-          QualityOption(label: 'MP4', sizeBytes: 0, url: widget.item.streamUrl!, isAudio: false, container: 'mp4'),
-          QualityOption(label: 'MP3', sizeBytes: 0, url: widget.item.streamUrl!, isAudio: true, container: 'mp3'),
+          QualityOption(label: 'MP4', sizeBytes: 0, url: streamUrl, isAudio: false, container: 'mp4'),
+          QualityOption(label: 'MP3', sizeBytes: 0, url: streamUrl, isAudio: true, container: 'mp3'),
         ];
         _loading = false;
       });
@@ -42,14 +52,21 @@ class _DownloadSheetState extends ConsumerState<DownloadSheet> {
       final list = await svc.getQualities(widget.item.id);
       svc.dispose();
       if (!mounted) return;
-      setState(() {
-        _options = list;
-        _loading = false;
-      });
+      if (list.isEmpty) {
+        setState(() {
+          _error = 'تعذر جلب جودات هذا الفيديو. قد يكون محمياً أو غير متاح في منطقتك.\n\nجرّب فيديو آخر أو أعد المحاولة لاحقاً.';
+          _loading = false;
+        });
+      } else {
+        setState(() {
+          _options = list;
+          _loading = false;
+        });
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        _error = 'حدث خطأ أثناء جلب الجودات:\n$e';
         _loading = false;
       });
     }

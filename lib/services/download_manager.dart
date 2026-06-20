@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import '../models/download_task.dart';
 import '../models/media_item.dart';
+import 'youtube_service.dart';
 
 /// Manages download tasks with these guarantees:
 /// 1. Files are saved to /Android/data/&lt;pkg&gt;/files/MediaGrab/{Videos|Music}/
@@ -165,65 +166,10 @@ class DownloadManager extends StateNotifier<List<DownloadTask>> {
       ..state = DownloadState.running
       ..startTime = DateTime.now()
       ..error = null;
-    // Don't reset progress — keep the previous value so resume feels
-    // continuous in the UI. dio will overwrite it once it sends back bytes.
     state = [...state];
 
     try {
-      // Defensive check: streamUrl must be a valid non-empty URL.
-      final urlStr = task.media.streamUrl;
-      if (urlStr == null || urlStr.isEmpty) {
-        throw ArgumentError('رابط التنزيل فارغ');
-      }
-      // Parse early so we get a clear error if it's malformed.
-      final uri = Uri.parse(urlStr);
-      if (!uri.hasScheme || (!uri.scheme.startsWith('http'))) {
-        throw ArgumentError('رابط التنزيل غير صالح');
-      }
-
-      final file = File(task.savePath);
-      // For resume: if the partial file exists, send Range header.
-      final existingLength = file.existsSync() ? await file.length() : 0;
-      final headers = <String, dynamic>{
-        // CRITICAL: YouTube CDN requires a real browser User-Agent, otherwise
-        // it returns 403 Forbidden (which surfaces as "فشل تحميل الملف").
-        'User-Agent': 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 '
-            '(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
-        'Accept': '*/*',
-        'Accept-Language': 'en-US,en;q=0.9',
-        // YouTube requires Referer header for video streams from googlevideo.com
-        'Referer': 'https://www.youtube.com/',
-        'Origin': 'https://www.youtube.com',
-      };
-      if (existingLength > 0) {
-        headers['Range'] = 'bytes=$existingLength-';
-      }
-
-      await _dio.downloadUri(
-        uri,
-        task.savePath,
-        cancelToken: canceler,
-        options: Options(
-          headers: headers,
-          receiveTimeout: const Duration(minutes: 30),
-          followRedirects: true,
-          maxRedirects: 5,
-        ),
-        onReceiveProgress: (received, total) {
-          // If resuming, the server reports total = remaining bytes (not full file).
-          // Compute effective total based on existingLength + total.
-          final effectiveTotal = existingLength > 0 && total > 0
-              ? existingLength + total
-              : total;
-          task
-            ..downloadedBytes = existingLength + received
-            ..totalBytes = effectiveTotal
-            ..progress = effectiveTotal > 0
-                ? (existingLength + received) / effectiveTotal
-                : 0;
-          state = [...state];
-        },
-      );
+      await _downloadWithRetry(task, canceler, maxRetries: 2);
       task
         ..state = DownloadState.completed
         ..progress = 1
@@ -249,6 +195,96 @@ class DownloadManager extends StateNotifier<List<DownloadTask>> {
       _activeCount--;
       state = [...state];
       _pumpQueue();
+    }
+  }
+
+  /// Download with retry: if the URL returns 403 (expired), refresh
+  /// qualities from YouTubeService and try again with the new URL.
+  Future<void> _downloadWithRetry(DownloadTask task, CancelToken canceler, {required int maxRetries}) async {
+    for (var attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        final urlStr = task.media.streamUrl;
+        if (urlStr == null || urlStr.isEmpty) {
+          throw ArgumentError('رابط التنزيل فارغ');
+        }
+        final uri = Uri.parse(urlStr);
+        if (!uri.hasScheme || !uri.scheme.startsWith('http')) {
+          throw ArgumentError('رابط التنزيل غير صالح');
+        }
+
+        final file = File(task.savePath);
+        final existingLength = file.existsSync() ? await file.length() : 0;
+        final headers = <String, dynamic>{
+          'User-Agent': 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 '
+              '(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+          'Accept': '*/*',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Referer': 'https://www.youtube.com/',
+          'Origin': 'https://www.youtube.com',
+        };
+        if (existingLength > 0) {
+          headers['Range'] = 'bytes=$existingLength-';
+        }
+
+        await _dio.downloadUri(
+          uri,
+          task.savePath,
+          cancelToken: canceler,
+          options: Options(
+            headers: headers,
+            receiveTimeout: const Duration(minutes: 30),
+            followRedirects: true,
+            maxRedirects: 5,
+          ),
+          onReceiveProgress: (received, total) {
+            final effectiveTotal = existingLength > 0 && total > 0
+                ? existingLength + total
+                : total;
+            task
+              ..downloadedBytes = existingLength + received
+              ..totalBytes = effectiveTotal
+              ..progress = effectiveTotal > 0
+                  ? (existingLength + received) / effectiveTotal
+                  : 0;
+            state = [...state];
+          },
+        );
+        return; // Success
+      } on DioException catch (e) {
+        // If 403 (URL expired) and this is a YouTube video, refresh URL and retry
+        final isExpired = e.response?.statusCode == 403 || e.response?.statusCode == 410;
+        final isYouTube = task.media.platform == Platform.youtube;
+        if (isExpired && isYouTube && attempt < maxRetries) {
+          // Try to refresh the URL from YouTubeService
+          final freshUrl = await _refreshYouTubeUrl(task);
+          if (freshUrl != null) {
+            // Update the task's streamUrl in-place and retry
+            task.media = task.media.copyWith(streamUrl: freshUrl);
+            state = [...state];
+            continue; // retry with new URL
+          }
+        }
+        rethrow;
+      }
+    }
+  }
+
+  /// Refresh a YouTube stream URL by re-fetching qualities and finding
+  /// one that matches the task's quality label.
+  Future<String?> _refreshYouTubeUrl(DownloadTask task) async {
+    try {
+      final svc = YouTubeService();
+      final qualities = await svc.getQualities(task.media.id);
+      svc.dispose();
+      // Find a quality that matches what the user originally selected
+      final match = qualities.where((q) =>
+        q.label.contains(task.quality) ||
+        task.quality.contains(q.label) ||
+        (q.isAudio == task.isAudio && q.label == task.quality)
+      ).firstOrNull;
+      return match?.url;
+    } catch (_) {
+      return null;
     }
   }
 
