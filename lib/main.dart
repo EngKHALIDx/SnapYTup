@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app.dart';
 import 'core/services/theme_controller.dart';
+import 'core/services/vault_controller.dart';
 import 'core/utils/storage_utils.dart';
 
 Future<void> main() async {
@@ -26,6 +27,9 @@ Future<void> main() async {
       overrides: [
         themeControllerProvider.overrideWith(
           (ref) => ThemeController(prefs),
+        ),
+        vaultControllerProvider.overrideWith(
+          (ref) => VaultController(prefs),
         ),
       ],
       child: const MediaGrabApp(),

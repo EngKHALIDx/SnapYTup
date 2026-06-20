@@ -4,10 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_config.dart';
 import '../../../core/models/category_item.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../widgets/app_bottom_nav.dart';
 import '../widgets/category_grid.dart';
 import '../widgets/daily_picks_section.dart';
 
-/// Home screen: banner + 8-tile category grid + "Daily picks" list.
+/// Home screen — Snaptube-style: top search bar + platform shortcuts grid +
+/// categories + daily picks. The platform shortcuts row sits below the AppBar
+/// and acts as the fastest way to jump to a platform's mobile site in the
+/// Browser tab.
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
@@ -45,6 +49,7 @@ class HomeScreen extends ConsumerWidget {
       body: const CustomScrollView(
         slivers: [
           SliverToBoxAdapter(child: _HeroBanner()),
+          SliverToBoxAdapter(child: _PlatformShortcuts()),
           SliverPadding(
             padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
             sliver: SliverToBoxAdapter(
@@ -54,7 +59,7 @@ class HomeScreen extends ConsumerWidget {
               ),
             ),
           ),
-          SliverToBoxAdapter(child: CategoryGrid(categories: homeCategories)),
+          SliverToBoxAdapter(child: CategoryGrid(categories: homeCategories),),
           SliverToBoxAdapter(child: SizedBox(height: 16)),
           SliverToBoxAdapter(
             child: Padding(
@@ -123,6 +128,61 @@ class _HeroBanner extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Quick-launch row of platform icons — tapping one opens the platform's
+/// mobile site in the Browser tab.
+class _PlatformShortcuts extends ConsumerWidget {
+  const _PlatformShortcuts();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return SizedBox(
+      height: 92,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        itemCount: AppConfig.platforms.length,
+        itemBuilder: (context, i) {
+          final p = AppConfig.platforms[i];
+          return Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: InkWell(
+              onTap: () {
+                // Switch to Browser tab.
+                ref.read(selectedTabProvider.notifier).state = 2;
+              },
+              borderRadius: BorderRadius.circular(12),
+              child: Column(
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: Color(p.color).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Center(
+                      child: Text(
+                        p.icon,
+                        style: TextStyle(
+                          fontSize: 26,
+                          color: Color(p.color),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(p.name, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500)),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }

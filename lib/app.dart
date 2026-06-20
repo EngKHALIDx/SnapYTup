@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/constants/app_config.dart';
+import 'core/services/clipboard_watcher_service.dart';
 import 'core/services/theme_controller.dart';
 import 'core/theme/app_theme.dart';
 import 'features/browser/screens/browser_screen.dart';
@@ -12,11 +13,42 @@ import 'features/search/screens/search_screen.dart';
 import 'widgets/app_bottom_nav.dart';
 
 /// Root widget of the MediaGrab app.
-class MediaGrabApp extends ConsumerWidget {
+class MediaGrabApp extends ConsumerStatefulWidget {
   const MediaGrabApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MediaGrabApp> createState() => _MediaGrabAppState();
+}
+
+class _MediaGrabAppState extends ConsumerState<MediaGrabApp> {
+  @override
+  void initState() {
+    super.initState();
+    // Start watching the clipboard for video URLs (Snaptube-style).
+    Future.microtask(() {
+      final watcher = ref.read(clipboardWatcherProvider);
+      watcher.start((url) {
+        if (!mounted) return;
+        ref.read(detectedUrlProvider.notifier).state = url;
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            duration: const Duration(seconds: 8),
+            content: const Text('Video link detected in clipboard'),
+            action: SnackBarAction(
+              label: 'Open',
+              onPressed: () {
+                ref.read(selectedTabProvider.notifier).state = 2; // Browser tab
+              },
+            ),
+          ),
+        );
+      });
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final themeMode = ref.watch(themeControllerProvider);
     return MaterialApp(
       title: AppConfig.appName,

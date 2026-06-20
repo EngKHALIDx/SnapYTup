@@ -4,9 +4,11 @@
 // parts of the codebase so CI can run them quickly.
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:snap_yt/core/constants/app_config.dart';
 import 'package:snap_yt/core/models/category_item.dart';
 import 'package:snap_yt/core/models/download_task.dart';
 import 'package:snap_yt/core/models/media_item.dart';
+import 'package:snap_yt/core/services/app_update_service.dart';
 import 'package:snap_yt/core/utils/format_utils.dart';
 
 void main() {
@@ -140,6 +142,42 @@ void main() {
     test('every entry has a unique id', () {
       final ids = homeCategories.map((c) => c.id).toSet();
       expect(ids.length, homeCategories.length);
+    });
+  });
+
+  group('AppUpdateService.isNewer', () {
+    final svc = AppUpdateService();
+    test('detects newer versions correctly', () {
+      expect(svc.isNewer('1.0.0', '1.0.1'), true);
+      expect(svc.isNewer('1.0.0', '1.1.0'), true);
+      expect(svc.isNewer('1.0.0', '2.0.0'), true);
+    });
+
+    test('detects same or older versions correctly', () {
+      expect(svc.isNewer('1.0.0', '1.0.0'), false);
+      expect(svc.isNewer('2.0.0', '1.0.0'), false);
+      expect(svc.isNewer('1.5.0', '1.4.9'), false);
+    });
+
+    test('handles different length versions', () {
+      expect(svc.isNewer('1.0', '1.0.1'), true);
+      expect(svc.isNewer('1.0.0.0', '1.0.0'), false);
+    });
+  });
+
+  group('Platform shortcuts', () {
+    test('includes all main platforms', () {
+      final names = AppConfig.platforms.map((p) => p.name).toSet();
+      for (final expected in ['YouTube', 'TikTok', 'Instagram', 'Facebook', 'Twitter', 'WhatsApp']) {
+        expect(names.contains(expected), true, reason: '$expected should be in shortcuts');
+      }
+    });
+
+    test('every shortcut has a non-empty URL', () {
+      for (final p in AppConfig.platforms) {
+        expect(p.url.isNotEmpty, true);
+        expect(p.url.startsWith('https://'), true);
+      }
     });
   });
 }

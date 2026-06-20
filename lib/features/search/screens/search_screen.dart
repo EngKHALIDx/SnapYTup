@@ -5,6 +5,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/format_utils.dart';
 import '../../../widgets/media_thumbnail.dart';
 import '../../downloader/screens/download_options_sheet.dart';
+import '../../downloader/widgets/batch_download_controller.dart';
 import '../widgets/youtube_search_notifier.dart';
 
 /// Full-screen search experience.
@@ -148,6 +149,25 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               return _SearchResultTile(
                 item: item,
                 onTap: () => _showOptionsSheet(item),
+                onLongPress: () {
+                  // Long-press adds to the batch download queue.
+                  ref.read(batchDownloadProvider.notifier).add(item);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Added to batch · ${ref.read(batchDownloadProvider).items.length} item(s)'),
+                      action: SnackBarAction(
+                        label: 'Start batch',
+                        onPressed: () async {
+                          await ref.read(batchDownloadProvider.notifier).start();
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Batch download started.')),
+                          );
+                        },
+                      ),
+                    ),
+                  );
+                },
               );
             },
           );
@@ -239,10 +259,15 @@ class _SuggestionChip extends StatelessWidget {
 
 /// One search result row with thumbnail + meta + download button.
 class _SearchResultTile extends StatelessWidget {
-  const _SearchResultTile({required this.item, required this.onTap});
+  const _SearchResultTile({
+    required this.item,
+    required this.onTap,
+    this.onLongPress,
+  });
 
   final dynamic item;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -298,6 +323,7 @@ class _SearchResultTile extends StatelessWidget {
         onPressed: onTap,
       ),
       onTap: onTap,
+      onLongPress: onLongPress,
     );
   }
 }

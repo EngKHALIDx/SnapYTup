@@ -3,12 +3,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../core/constants/app_config.dart';
+import '../../../core/services/app_update_service.dart';
 import '../../../core/services/theme_controller.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/storage_utils.dart';
 import '../../../data/repositories/library_repository.dart';
+import '../../storage_cleanup/screens/storage_cleanup_screen.dart';
+import '../../vault/screens/vault_unlock_screen.dart';
 
-/// Settings screen.
+/// Settings screen — Snaptube-style: appearance, downloads, vault, storage
+/// cleanup, about + in-app update banner.
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
@@ -19,6 +23,7 @@ class SettingsScreen extends ConsumerWidget {
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         children: [
+          _UpdateBanner(),
           _SectionHeader('Appearance'),
           ListTile(
             leading: const Icon(Icons.dark_mode_outlined),
@@ -62,10 +67,30 @@ class SettingsScreen extends ConsumerWidget {
               // TODO: show quality picker
             },
           ),
+          const Divider(),
+          _SectionHeader('Privacy & Storage'),
+          ListTile(
+            leading: const Icon(Icons.lock_outline, color: AppColors.primary),
+            title: const Text('Vault'),
+            subtitle: const Text('Hide private downloads behind a PIN'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const VaultUnlockScreen()),
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.cleaning_services_outlined, color: AppColors.info),
+            title: const Text('Storage cleanup'),
+            subtitle: const Text('Free up space by removing junk files'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const StorageCleanupScreen()),
+            ),
+          ),
           ListTile(
             leading: const Icon(Icons.delete_outline, color: AppColors.error),
-            title: const Text('Clear cache'),
-            subtitle: const Text('Remove downloaded files'),
+            title: const Text('Clear MediaGrab cache'),
+            subtitle: const Text('Remove all downloaded videos and music'),
             onTap: () => _confirmClear(context, ref),
           ),
           const Divider(),
@@ -89,6 +114,11 @@ class SettingsScreen extends ConsumerWidget {
             onTap: () {
               // launchUrl could be used here, omitted to keep deps lean.
             },
+          ),
+          ListTile(
+            leading: const Icon(Icons.system_update),
+            title: const Text('Check for updates'),
+            onTap: () => ref.invalidate(updateCheckProvider),
           ),
           const SizedBox(height: 24),
         ],
@@ -153,4 +183,50 @@ class _SectionHeader extends StatelessWidget {
           ),
         ),
       );
+}
+
+/// Banner shown at the top of Settings when a newer version is available.
+class _UpdateBanner extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final updateAsync = ref.watch(updateCheckProvider);
+    return updateAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (data) {
+        if (data == null || !data.updateAvailable) return const SizedBox.shrink();
+        return Material(
+          color: AppColors.primary.withValues(alpha: 0.12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                const Icon(Icons.system_update, color: AppColors.primary),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'Update available',
+                        style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary),
+                      ),
+                      Text('v${data.currentVersion} → v${data.latestVersion}'),
+                    ],
+                  ),
+                ),
+                TextButton(
+                  onPressed: () {
+                    // Could open browser to GitHub releases.
+                  },
+                  child: const Text('Download'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 }
