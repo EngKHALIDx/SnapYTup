@@ -1,5 +1,5 @@
 # SnapYT
-
+ 
 SnapYT is an open-source YouTube video downloader application built using the **Flutter** framework. Designed for simplicity and performance, SnapYT allows users to save YouTube videos and access them offline anytime. It is open-source and freely available, encouraging developers to contribute and improve the project.
 
 ---
