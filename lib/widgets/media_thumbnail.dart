@@ -1,8 +1,9 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../core/theme/app_colors.dart';
 
-/// Reusable network image with a dark gradient placeholder.
+/// iOS-style network image with a clean placeholder.
 class MediaThumbnail extends StatelessWidget {
   const MediaThumbnail({
     super.key,
@@ -28,40 +29,28 @@ class MediaThumbnail extends StatelessWidget {
         fit: fit,
         loadingBuilder: (context, child, progress) {
           if (progress == null) return child;
-          return _placeholder(isDark, showSpinner: true);
+          return _placeholder(isDark, loading: true);
         },
         errorBuilder: (_, __, ___) => _placeholder(isDark),
       ),
     );
   }
 
-  Widget _placeholder(bool isDark, {bool showSpinner = false}) {
+  Widget _placeholder(bool isDark, {bool loading = false}) {
     return Container(
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkSurfaceAlt : AppColors.lightSurfaceAlt,
         borderRadius: BorderRadius.circular(borderRadius),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            isDark ? AppColors.darkSurfaceAlt : AppColors.lightSurfaceAlt,
-            isDark ? AppColors.darkSurface : AppColors.lightSurface,
-          ],
-        ),
       ),
-      child: showSpinner
-          ? const Center(
-              child: SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(strokeWidth: 2),
+      child: Center(
+        child: loading
+            ? const CupertinoActivityIndicator()
+            : Icon(
+                CupertinoIcons.film,
+                color: isDark ? AppColors.labelTertiaryDark : AppColors.labelTertiary,
+                size: 28,
               ),
-            )
-          : Icon(
-              Icons.play_circle_outline,
-              color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
-              size: 36,
-            ),
+      ),
     );
   }
 }

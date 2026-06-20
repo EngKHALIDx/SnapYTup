@@ -1,3 +1,6 @@
+import 'dart:ui';
+
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -6,47 +9,105 @@ import '../core/theme/app_colors.dart';
 /// Index of the currently selected bottom nav tab.
 final selectedTabProvider = StateProvider<int>((ref) => 0);
 
-/// Snaptube-style bottom navigation bar with 5 tabs.
+/// Cupertino-style bottom tab bar with blur effect (iOS UITabBar pattern).
 class AppBottomNav extends ConsumerWidget {
   const AppBottomNav({super.key});
 
-  static const _items = <BottomNavItem>[
-    BottomNavItem(icon: Icons.home_outlined, activeIcon: Icons.home, label: 'Home'),
-    BottomNavItem(icon: Icons.search_outlined, activeIcon: Icons.search, label: 'Search'),
-    BottomNavItem(icon: Icons.language_outlined, activeIcon: Icons.language, label: 'Browser'),
-    BottomNavItem(icon: Icons.video_library_outlined, activeIcon: Icons.video_library, label: 'Library'),
-    BottomNavItem(icon: Icons.settings_outlined, activeIcon: Icons.settings, label: 'Settings'),
+  static const _items = <_TabItem>[
+    _TabItem(icon: CupertinoIcons.house_fill, label: 'Home'),
+    _TabItem(icon: CupertinoIcons.search, label: 'Search'),
+    _TabItem(icon: CupertinoIcons.globe, label: 'Browser'),
+    _TabItem(icon: CupertinoIcons.square_stack_fill, label: 'Library'),
+    _TabItem(icon: CupertinoIcons.person_crop_circle, label: 'Profile'),
   ];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selected = ref.watch(selectedTabProvider);
-    return NavigationBar(
-      selectedIndex: selected,
-      onDestinationSelected: (i) => ref.read(selectedTabProvider.notifier).state = i,
-      destinations: [
-        for (final item in _items)
-          NavigationDestination(
-            icon: Icon(item.icon),
-            selectedIcon: Icon(item.activeIcon, color: AppColors.primary),
-            label: item.label,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return ClipRRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        child: Container(
+          decoration: BoxDecoration(
+            color: (isDark ? Colors.black : Colors.white).withValues(alpha: 0.72),
+            border: Border(
+              top: BorderSide(
+                color: isDark
+                    ? AppColors.darkSeparator.withValues(alpha: 0.6)
+                    : AppColors.lightSeparator.withValues(alpha: 0.6),
+                width: 0.5,
+              ),
+            ),
           ),
-      ],
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      indicatorColor: AppColors.primary.withValues(alpha: 0.15),
-      height: 64,
-      labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Row(
+                children: [
+                  for (var i = 0; i < _items.length; i++)
+                    Expanded(
+                      child: _TabButton(
+                        item: _items[i],
+                        isSelected: selected == i,
+                        onTap: () => ref.read(selectedTabProvider.notifier).state = i,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
 
-class BottomNavItem {
-  const BottomNavItem({
-    required this.icon,
-    required this.activeIcon,
-    required this.label,
-  });
+class _TabItem {
+  const _TabItem({required this.icon, required this.label});
   final IconData icon;
-  final IconData activeIcon;
   final String label;
+}
+
+class _TabButton extends StatelessWidget {
+  const _TabButton({
+    required this.item,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final _TabItem item;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              item.icon,
+              size: 24,
+              color: isSelected ? AppColors.systemBlue : const Color(0xFF8E8E93),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              item.label,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
+                color: isSelected ? AppColors.systemBlue : const Color(0xFF8E8E93),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

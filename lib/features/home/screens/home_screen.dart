@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -8,72 +9,65 @@ import '../../../widgets/app_bottom_nav.dart';
 import '../widgets/category_grid.dart';
 import '../widgets/daily_picks_section.dart';
 
-/// Home screen — Snaptube-style: top search bar (accepts keywords OR pasted
-/// video URLs) + horizontal platform shortcut row + trending feed +
-/// categories + daily picks.
+/// iOS-style Home screen: large title + blur search field + horizontal
+/// platform shortcuts + trending feed + categories grid.
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      appBar: AppBar(
-        title: Row(
-          children: [
-            Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(Icons.download_rounded, color: Colors.white, size: 18),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              AppConfig.appName,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_none),
-            onPressed: () {
-              // TODO: open notifications
-            },
-          ),
-        ],
-      ),
       body: CustomScrollView(
         slivers: [
-          // Search bar that accepts both keywords and pasted URLs (Snaptube pattern)
-          SliverToBoxAdapter(child: _HomeSearchBar(onTap: () {
-            // Jump to the Search tab.
-            ref.read(selectedTabProvider.notifier).state = 1;
-          })),
-          // Platform shortcut row + "View all sites"
-          const SliverToBoxAdapter(child: _PlatformShortcuts()),
-          const SliverToBoxAdapter(child: _HeroBanner()),
+          // Large title (iOS pattern)
+          SliverAppBar(
+            expandedHeight: 100,
+            pinned: true,
+            stretch: true,
+            backgroundColor: Colors.transparent,
+            surfaceTintColor: Colors.transparent,
+            flexibleSpace: FlexibleSpaceBar(
+              titlePadding: const EdgeInsets.only(left: 20, bottom: 8),
+              title: Text(
+                AppConfig.appName,
+                style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+            ),
+          ),
+          // Search field
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+              child: _SearchField(onTap: () {
+                ref.read(selectedTabProvider.notifier).state = 1;
+              }),
+            ),
+          ),
+          // Platform shortcuts
+          SliverToBoxAdapter(child: _PlatformShortcuts(isDark: isDark)),
+          // Hero card
+          const SliverToBoxAdapter(child: _HeroCard()),
           // Categories section
-          const SliverPadding(
-            padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-            sliver: SliverToBoxAdapter(
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
               child: Text(
-                'Categories',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                'Browse Categories',
+                style: Theme.of(context).textTheme.titleLarge,
               ),
             ),
           ),
           const SliverToBoxAdapter(child: CategoryGrid(categories: homeCategories)),
-          const SliverToBoxAdapter(child: SizedBox(height: 16)),
           // Daily picks
-          const SliverToBoxAdapter(
+          SliverToBoxAdapter(
             child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
               child: Text(
                 'Daily Picks',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: Theme.of(context).textTheme.titleLarge,
               ),
             ),
           ),
@@ -85,62 +79,162 @@ class HomeScreen extends ConsumerWidget {
   }
 }
 
-/// Tappable search bar that looks like Snaptube's: pill-shaped, hint says
-/// "Search or paste a link". Tapping opens the full Search screen.
-class _HomeSearchBar extends StatelessWidget {
-  const _HomeSearchBar({required this.onTap});
+class _SearchField extends StatelessWidget {
+  const _SearchField({required this.onTap});
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: isDark ? AppColors.darkSurfaceAlt : AppColors.lightSurfaceAlt,
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.search, color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Search or paste a link',
-                  style: TextStyle(
-                    color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
-                  ),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+        decoration: BoxDecoration(
+          color: isDark
+              ? AppColors.darkSurfaceAlt
+              : AppColors.lightSurfaceAlt.withValues(alpha: 0.7),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Icon(CupertinoIcons.search,
+                size: 18,
+                color: isDark ? AppColors.labelSecondaryDark : AppColors.labelSecondary),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Search or paste a link',
+                style: TextStyle(
+                  fontSize: 17,
+                  color: isDark ? AppColors.labelTertiaryDark : AppColors.labelTertiary,
                 ),
               ),
-              Icon(Icons.mic_none, color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight),
-            ],
-          ),
+            ),
+            Icon(CupertinoIcons.mic,
+                size: 18,
+                color: isDark ? AppColors.labelTertiaryDark : AppColors.labelTertiary),
+          ],
         ),
       ),
     );
   }
 }
 
-/// Big tappable banner at the top — points users to the browser.
-class _HeroBanner extends StatelessWidget {
-  const _HeroBanner();
+class _PlatformShortcuts extends StatelessWidget {
+  const _PlatformShortcuts({required this.isDark});
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 88,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        itemCount: AppConfig.platforms.length + 1,
+        itemBuilder: (context, i) {
+          if (i == AppConfig.platforms.length) {
+            return _ShortcutTile(
+              icon: CupertinoIcons.square_grid_2x2,
+              label: 'All sites',
+              color: AppColors.systemBlue,
+              isDark: isDark,
+              onTap: () => _goToBrowser(context),
+            );
+          }
+          final p = AppConfig.platforms[i];
+          return _ShortcutTile(
+            icon: _iconForPlatform(p.name),
+            label: p.name,
+            color: Color(p.color),
+            isDark: isDark,
+            onTap: () => _goToBrowser(context),
+          );
+        },
+      ),
+    );
+  }
+
+  void _goToBrowser(BuildContext context) {
+    // switch to Browser tab via the Riverpod provider
+    final container = ProviderScope.containerOf(context);
+    container.read(selectedTabProvider.notifier).state = 2;
+  }
+
+  IconData _iconForPlatform(String name) {
+    switch (name) {
+      case 'YouTube': return CupertinoIcons.play_rectangle_fill;
+      case 'TikTok': return CupertinoIcons.music_note;
+      case 'Instagram': return CupertinoIcons.camera;
+      case 'Facebook': return CupertinoIcons.person_2_fill;
+      case 'Twitter': return CupertinoIcons.heart;
+      case 'WhatsApp': return CupertinoIcons.chat_bubble_fill;
+      default: return CupertinoIcons.globe;
+    }
+  }
+}
+
+class _ShortcutTile extends StatelessWidget {
+  const _ShortcutTile({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+  final bool isDark;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.only(right: 12),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(icon, color: color, size: 26),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HeroCard extends StatelessWidget {
+  const _HeroCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
       child: Container(
-        height: 140,
+        height: 144,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
           gradient: const LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [AppColors.primary, AppColors.secondary],
+            colors: [AppColors.systemIndigo, AppColors.systemBlue],
           ),
         ),
         child: Padding(
@@ -152,114 +246,27 @@ class _HeroBanner extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text(
-                      'Download from any platform',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
                     Text(
-                      'YouTube · TikTok · Instagram · Facebook · Twitter',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.9),
-                        fontSize: 12,
-                      ),
+                      'Download Anything',
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Videos & music from 100+ platforms.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Colors.white.withValues(alpha: 0.9),
+                          ),
                     ),
                   ],
                 ),
               ),
-              const Icon(Icons.play_circle_fill, color: Colors.white, size: 64),
+              const Icon(CupertinoIcons.download_circle_fill, color: Colors.white, size: 56),
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// Quick-launch row of platform icons — tapping one opens the platform's
-/// mobile site in the Browser tab. Includes a "View all" tile at the end.
-class _PlatformShortcuts extends ConsumerWidget {
-  const _PlatformShortcuts();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return SizedBox(
-      height: 92,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        // +1 for the "View all" tile at the end.
-        itemCount: AppConfig.platforms.length + 1,
-        itemBuilder: (context, i) {
-          if (i == AppConfig.platforms.length) {
-            return Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: InkWell(
-                onTap: () {
-                  // Switch to Browser tab.
-                  ref.read(selectedTabProvider.notifier).state = 2;
-                },
-                borderRadius: BorderRadius.circular(12),
-                child: Column(
-                  children: [
-                    Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        color: AppColors.darkBorder.withValues(alpha: 0.3),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: const Center(
-                        child: Icon(Icons.apps, color: AppColors.primary),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    const Text('All sites', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500)),
-                  ],
-                ),
-              ),
-            );
-          }
-          final p = AppConfig.platforms[i];
-          return Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: InkWell(
-              onTap: () {
-                // Switch to Browser tab.
-                ref.read(selectedTabProvider.notifier).state = 2;
-              },
-              borderRadius: BorderRadius.circular(12),
-              child: Column(
-                children: [
-                  Container(
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(
-                      color: Color(p.color).withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Center(
-                      child: Text(
-                        p.icon,
-                        style: TextStyle(
-                          fontSize: 26,
-                          color: Color(p.color),
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(p.name, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500)),
-                ],
-              ),
-            ),
-          );
-        },
       ),
     );
   }

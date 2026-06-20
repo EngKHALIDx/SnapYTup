@@ -70,7 +70,7 @@ class _HistoryList extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.history, size: 64, color: AppColors.textSecondaryDark),
+            Icon(Icons.history, size: 64, color: AppColors.textSecondaryDark),
             const SizedBox(height: 8),
             Text(emptyText),
           ],

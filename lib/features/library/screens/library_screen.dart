@@ -190,11 +190,12 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.folder_open, size: 64, color: AppColors.textSecondaryDark),
+          Icon(Icons.folder_open, size: 64, color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight),
           const SizedBox(height: 8),
           Text(
             'Nothing here yet',

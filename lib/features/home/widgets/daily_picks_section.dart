@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -5,8 +6,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../widgets/media_card.dart';
 import '../../search/widgets/youtube_search_notifier.dart';
 
-/// "Daily Picks" horizontal list on the home screen.
-/// Uses a trending search query to surface YouTube videos.
+/// "Daily Picks" horizontal list with iOS-style card design.
 class DailyPicksSection extends ConsumerWidget {
   const DailyPicksSection({super.key});
 
@@ -14,15 +14,15 @@ class DailyPicksSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final trending = ref.watch(youtubeSearchProvider('trending music 2026'));
     return SizedBox(
-      height: 200,
+      height: 220,
       child: trending.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(child: CupertinoActivityIndicator()),
         error: (e, _) => _ErrorBox(message: e.toString()),
         data: (items) {
           if (items.isEmpty) return const _EmptyBox();
           return ListView.separated(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
             itemCount: items.length,
             separatorBuilder: (_, __) => const SizedBox(width: 12),
             itemBuilder: (context, i) {
@@ -32,7 +32,6 @@ class DailyPicksSection extends ConsumerWidget {
                 child: MediaCard(
                   item: item,
                   onTap: () {
-                    // TODO: open the video detail sheet
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(item.title, maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -59,9 +58,9 @@ class _ErrorBox extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Text(
-          'Failed to load daily picks.\n$message',
+          'Failed to load picks.\n$message',
           textAlign: TextAlign.center,
-          style: TextStyle(color: AppColors.error),
+          style: const TextStyle(color: AppColors.systemRed, fontSize: 13),
         ),
       ),
     );

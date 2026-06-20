@@ -196,17 +196,17 @@ class _EmptyBox extends StatelessWidget {
   const _EmptyBox();
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(Icons.chat_bubble_outline, size: 64, color: AppColors.textSecondaryDark),
-          SizedBox(height: 8),
-          Text('No statuses found.'),
-          SizedBox(height: 4),
+          const SizedBox(height: 8),
+          const Text('No statuses found.'),
+          const SizedBox(height: 4),
           Text(
             'Open WhatsApp and view some statuses first.',
-            style: TextStyle(color: AppColors.textSecondaryDark),
+            style: const TextStyle(color: AppColors.textSecondaryDark),
           ),
         ],
       ),

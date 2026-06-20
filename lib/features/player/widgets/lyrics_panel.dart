@@ -91,7 +91,7 @@ class _LyricsEmpty extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.music_off, size: 48, color: AppColors.textSecondaryDark),
+            Icon(Icons.music_off, size: 48, color: AppColors.textSecondaryDark),
             const SizedBox(height: 8),
             Text(
               message,

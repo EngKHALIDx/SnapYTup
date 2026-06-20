@@ -1,50 +1,83 @@
 import 'package:flutter/material.dart';
 
-/// Snaptube-inspired color palette.
-/// (Not the exact Snaptube brand colors — these are typical "video downloader"
-///  warm coral + cream + dark navy that match the genre.)
+/// Apple-inspired semantic color system.
+///
+/// These are NOT Snaptube colors — they're the iOS Material Design system
+/// colors that adapt to light/dark mode and feel native on iPhone/iPad.
+///
+/// Reference: https://developer.apple.com/design/human-interface-guidelines/color
 class AppColors {
   AppColors._();
 
-  // Brand
-  static const Color primary = Color(0xFFFF4E50);     // coral red
-  static const Color primaryDark = Color(0xFFD63031);
-  static const Color accent = Color(0xFFFECA57);      // warm yellow
-  static const Color secondary = Color(0xFF4834D4);   // deep indigo
+  // Brand (kept distinct from Snaptube's orange-red to avoid trademark issues)
+  static const Color primary = Color(0xFF007AFF);       // iOS Blue
+  static const Color primaryDark = Color(0xFF0A84FF);   // dark-mode blue
+  static const Color accent = Color(0xFFFF9500);        // iOS Orange
+  static const Color secondary = Color(0xFF5856D6);     // iOS Indigo
+  static const Color tertiary = Color(0xFFAF52DE);      // iOS Purple
 
-  // Dark theme surfaces
-  static const Color darkBg = Color(0xFF0F0F1A);      // near-black navy
-  static const Color darkSurface = Color(0xFF1A1A2E);
-  static const Color darkSurfaceAlt = Color(0xFF16213E);
-  static const Color darkBorder = Color(0xFF2D2D44);
+  // Apple semantic colors
+  static const Color systemBlue = Color(0xFF007AFF);
+  static const Color systemGreen = Color(0xFF34C759);
+  static const Color systemIndigo = Color(0xFF5856D6);
+  static const Color systemOrange = Color(0xFFFF9500);
+  static const Color systemPink = Color(0xFFFF2D55);
+  static const Color systemPurple = Color(0xFFAF52DE);
+  static const Color systemRed = Color(0xFFFF3B30);
+  static const Color systemTeal = Color(0xFF30B0C7);
+  static const Color systemYellow = Color(0xFFFFCC00);
+
+  // Dark theme surfaces (Apple-style elevated dark)
+  static const Color darkBg = Color(0xFF000000);            // pure black (OLED-friendly)
+  static const Color darkSurface = Color(0xFF1C1C1E);       // grouped background
+  static const Color darkSurfaceAlt = Color(0xFF2C2C2E);    // grouped card
+  static const Color darkSurfaceElevated = Color(0xFF3A3A3C); // toolbar
+  static const Color darkBorder = Color(0xFF38383A);
+  static const Color darkSeparator = Color(0xFF545458);
 
   // Light theme surfaces
-  static const Color lightBg = Color(0xFFF8F9FA);
+  static const Color lightBg = Color(0xFFF2F2F7);           // grouped background
   static const Color lightSurface = Color(0xFFFFFFFF);
-  static const Color lightSurfaceAlt = Color(0xFFF1F3F5);
-  static const Color lightBorder = Color(0xFFE2E5E9);
+  static const Color lightSurfaceAlt = Color(0xFFE5E5EA);
+  static const Color lightSurfaceElevated = Color(0xFFF9F9F9);
+  static const Color lightBorder = Color(0xFFE5E5EA);
+  static const Color lightSeparator = Color(0xFFC6C6C8);
 
-  // Text
-  static const Color textPrimaryDark = Color(0xFFFFFFFF);
-  static const Color textSecondaryDark = Color(0xFFB0B3C6);
-  static const Color textPrimaryLight = Color(0xFF1A1A2E);
-  static const Color textSecondaryLight = Color(0xFF6C7281);
+  // Text (Apple-style)
+  static const Color labelPrimary = Color(0xFF000000);
+  static const Color labelSecondary = Color(0xFF3C3C43);    // 60% opacity on light
+  static const Color labelTertiary = Color(0xFF3C3C43);     // 30% opacity on light
+  static const Color labelQuaternary = Color(0xFF3C3C43);   // 18% opacity on light
+  static const Color labelPrimaryDark = Color(0xFFFFFFFF);
+  static const Color labelSecondaryDark = Color(0xFFEBEBF5); // 60% on dark
+  static const Color labelTertiaryDark = Color(0xFFEBEBF5);  // 30% on dark
 
   // States
-  static const Color success = Color(0xFF26DE81);
-  static const Color warning = Color(0xFFFFC312);
-  static const Color error = Color(0xFFEB3B5A);
-  static const Color info = Color(0xFF45AAF2);
+  static const Color success = Color(0xFF34C759);
+  static const Color warning = Color(0xFFFFCC00);
+  static const Color error = Color(0xFFFF3B30);
+  static const Color info = Color(0xFF5AC8FA);
 
-  // Category tints (for the home grid)
+  // Fill colors (Apple's subtle backgrounds)
+  static const Color fillPrimary = Color(0xFF787880);       // 20% opacity
+  static const Color fillSecondary = Color(0xFF787880);     // 16% opacity
+  static const Color fillTertiary = Color(0xFF767680);      // 12% opacity
+
+  // Legacy aliases (kept so existing code keeps working)
+  static const Color textPrimaryDark = labelPrimaryDark;
+  static const Color textSecondaryDark = labelSecondaryDark;
+  static const Color textPrimaryLight = labelPrimary;
+  static const Color textSecondaryLight = labelSecondary;
+
+  // Category tints (for the home grid) — Apple system colors
   static const List<int> categoryTints = [
-    0xFFFF6B6B, // Music
-    0xFF4ECDC4, // Sports
-    0xFFFFD93D, // Movies
-    0xFF95D5B2, // Gaming
-    0xFFA8DADC, // News
-    0xFFFFB4A2, // Comedy
-    0xFFBDB2FF, // Tech
-    0xFFFFC8DD, // Fashion
+    0xFFFF2D55, // systemPink - Music
+    0xFF30B0C7, // systemTeal - Sports
+    0xFFFF9500, // systemOrange - Movies
+    0xFF34C759, // systemGreen - Gaming
+    0xFF5AC8FA, // systemBlue - News
+    0xFFAF52DE, // systemPurple - Comedy
+    0xFF5856D6, // systemIndigo - Tech
+    0xFFFF3B30, // systemRed - Fashion
   ];
 }

@@ -27,7 +27,7 @@ class PlaylistsScreen extends ConsumerWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.playlist_play, size: 64, color: AppColors.textSecondaryDark),
+                  Icon(Icons.playlist_play, size: 64, color: AppColors.textSecondaryDark),
                   const SizedBox(height: 8),
                   const Text('No playlists yet.'),
                   const SizedBox(height: 16),

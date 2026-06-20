@@ -6,6 +6,7 @@ import '../../../core/services/download_manager.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/format_utils.dart';
 import '../../../data/repositories/youtube_repository.dart';
+import 'download_queue_screen.dart';
 
 /// Bottom sheet that shows available download qualities for a YouTube video
 /// and lets the user enqueue a download.
@@ -237,15 +238,11 @@ class _DownloadOptionsSheetState extends ConsumerState<DownloadOptionsSheet> {
     );
     if (!mounted) return;
     Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Download queued.'),
-        action: SnackBarAction(
-          label: 'View',
-          onPressed: () {
-            // TODO: navigate to download queue
-          },
-        ),
+    // Open the live Download Manager so the user sees real-time progress
+    // (instead of the previously-confusing "Download queued." toast).
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const DownloadQueueScreen(),
       ),
     );
   }

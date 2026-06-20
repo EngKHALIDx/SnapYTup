@@ -62,6 +62,8 @@ class _MediaGrabAppState extends ConsumerState<MediaGrabApp> {
 }
 
 /// Holds the bottom-nav and swaps the active tab body.
+/// Uses a Stack with Offstage so each tab preserves its scroll position
+/// when the user switches away (iOS pattern).
 class _Shell extends ConsumerWidget {
   const _Shell();
 
@@ -69,16 +71,16 @@ class _Shell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tab = ref.watch(selectedTabProvider);
     return Scaffold(
-      body: IndexedStack(
-        index: tab,
-        children: const [
-          HomeScreen(),
-          SearchScreen(),
-          BrowserScreen(),
-          LibraryScreen(),
-          SettingsScreen(),
+      body: Stack(
+        children: [
+          Offstage(offstage: tab != 0, child: const HomeScreen()),
+          Offstage(offstage: tab != 1, child: const SearchScreen()),
+          Offstage(offstage: tab != 2, child: const BrowserScreen()),
+          Offstage(offstage: tab != 3, child: const LibraryScreen()),
+          Offstage(offstage: tab != 4, child: const SettingsScreen()),
         ],
       ),
+      extendBody: true,
       bottomNavigationBar: const AppBottomNav(),
     );
   }

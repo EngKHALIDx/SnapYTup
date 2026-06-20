@@ -91,7 +91,7 @@ class _StorageCleanupScreenState extends ConsumerState<StorageCleanupScreen>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.cleaning_services_outlined, size: 64, color: AppColors.textSecondaryDark),
+            Icon(Icons.cleaning_services_outlined, size: 64, color: AppColors.textSecondaryDark),
             const SizedBox(height: 8),
             const Text('Nothing to clean.'),
             const SizedBox(height: 16),

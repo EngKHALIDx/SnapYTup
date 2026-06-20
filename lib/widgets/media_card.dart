@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -6,7 +7,7 @@ import '../core/theme/app_colors.dart';
 import '../core/utils/format_utils.dart';
 import 'media_thumbnail.dart';
 
-/// Card displaying a single [MediaItem] in a grid.
+/// iOS-style card displaying a single [MediaItem].
 class MediaCard extends ConsumerWidget {
   const MediaCard({
     super.key,
@@ -31,13 +32,13 @@ class MediaCard extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Thumbnail
           Stack(
             children: [
               AspectRatio(
                 aspectRatio: 16 / 9,
                 child: MediaThumbnail(url: item.thumbnailUrl),
               ),
+              // Duration badge (iOS-style)
               if (item.duration != null)
                 Positioned(
                   right: 6,
@@ -45,7 +46,7 @@ class MediaCard extends ConsumerWidget {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.75),
+                      color: Colors.black.withValues(alpha: 0.7),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
@@ -58,25 +59,42 @@ class MediaCard extends ConsumerWidget {
                     ),
                   ),
                 ),
+              // Small download arrow (Snaptube-style)
               Positioned(
                 left: 6,
-                top: 6,
-                child: _PlatformChip(platform: item.platform),
+                bottom: 6,
+                child: GestureDetector(
+                  onTap: onTap,
+                  child: Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.7),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      CupertinoIcons.arrow_down,
+                      color: Colors.white,
+                      size: 14,
+                    ),
+                  ),
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 6),
-          // Title (max 2 lines)
+          const SizedBox(height: 8),
           Text(
             item.title,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              height: 1.3,
+            ),
           ),
           if (showAuthor) ...[
-            const SizedBox(height: 2),
+            const SizedBox(height: 4),
             Row(
               children: [
                 if (item.author != null)
@@ -86,10 +104,8 @@ class MediaCard extends ConsumerWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 11,
-                        color: isDark
-                            ? AppColors.textSecondaryDark
-                            : AppColors.textSecondaryLight,
+                        fontSize: 12,
+                        color: isDark ? AppColors.labelSecondaryDark : AppColors.labelSecondary,
                       ),
                     ),
                   ),
@@ -97,40 +113,14 @@ class MediaCard extends ConsumerWidget {
                   Text(
                     '· ${FormatUtils.views(item.viewCount)}',
                     style: TextStyle(
-                      fontSize: 11,
-                      color: isDark
-                          ? AppColors.textSecondaryDark
-                          : AppColors.textSecondaryLight,
+                      fontSize: 12,
+                      color: isDark ? AppColors.labelSecondaryDark : AppColors.labelSecondary,
                     ),
                   ),
               ],
             ),
           ],
         ],
-      ),
-    );
-  }
-}
-
-class _PlatformChip extends StatelessWidget {
-  const _PlatformChip({required this.platform});
-  final MediaPlatform platform;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        platform.label,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 10,
-          fontWeight: FontWeight.bold,
-        ),
       ),
     );
   }
