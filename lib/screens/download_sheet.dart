@@ -222,6 +222,16 @@ class _DownloadSheetState extends ConsumerState<DownloadSheet> {
 
   Future<void> _enqueue() async {
     final opt = _options![_selected];
+
+    // Show loading indicator while starting the download
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: Color(0xFF007AFF)),
+      ),
+    );
+
     final id = await ref.read(downloadManagerProvider.notifier).enqueue(
           media: widget.item.copyWith(streamUrl: opt.url),
           streamUrl: opt.url,
@@ -231,6 +241,7 @@ class _DownloadSheetState extends ConsumerState<DownloadSheet> {
         );
 
     if (!mounted) return;
+    Navigator.of(context).pop(); // dismiss loading dialog
 
     // Close the bottom sheet
     Navigator.pop(context);
@@ -251,7 +262,7 @@ class _DownloadSheetState extends ConsumerState<DownloadSheet> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('فشل بدء التنزيل'),
+          content: const Text('فشل بدء التنزيل — تحقق من الاتصال بالإنترنت'),
           backgroundColor: const Color(0xFFFF3B30),
           duration: const Duration(seconds: 3),
           behavior: SnackBarBehavior.floating,

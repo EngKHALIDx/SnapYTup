@@ -184,7 +184,17 @@ class DownloadManager extends StateNotifier<List<DownloadTask>> {
       final file = File(task.savePath);
       // For resume: if the partial file exists, send Range header.
       final existingLength = file.existsSync() ? await file.length() : 0;
-      final headers = <String, dynamic>{};
+      final headers = <String, dynamic>{
+        // CRITICAL: YouTube CDN requires a real browser User-Agent, otherwise
+        // it returns 403 Forbidden (which surfaces as "فشل تحميل الملف").
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 '
+            '(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+        'Accept': '*/*',
+        'Accept-Language': 'en-US,en;q=0.9',
+        // YouTube requires Referer header for video streams from googlevideo.com
+        'Referer': 'https://www.youtube.com/',
+        'Origin': 'https://www.youtube.com',
+      };
       if (existingLength > 0) {
         headers['Range'] = 'bytes=$existingLength-';
       }
@@ -193,7 +203,12 @@ class DownloadManager extends StateNotifier<List<DownloadTask>> {
         uri,
         task.savePath,
         cancelToken: canceler,
-        options: Options(headers: headers, receiveTimeout: const Duration(minutes: 30)),
+        options: Options(
+          headers: headers,
+          receiveTimeout: const Duration(minutes: 30),
+          followRedirects: true,
+          maxRedirects: 5,
+        ),
         onReceiveProgress: (received, total) {
           // If resuming, the server reports total = remaining bytes (not full file).
           // Compute effective total based on existingLength + total.
@@ -211,7 +226,8 @@ class DownloadManager extends StateNotifier<List<DownloadTask>> {
       );
       task
         ..state = DownloadState.completed
-        ..progress = 1;
+        ..progress = 1
+        ..endTime = DateTime.now();
     } on DioException catch (e) {
       if (e.type == DioExceptionType.cancel) {
         // Pause/cancel already set the state; don't overwrite.
@@ -227,13 +243,34 @@ class DownloadManager extends StateNotifier<List<DownloadTask>> {
     } catch (e) {
       task
         ..state = DownloadState.failed
-        ..error = e.toString();
+        ..error = _translateError(e);
     } finally {
       _cancelers.remove(task.id);
       _activeCount--;
       state = [...state];
       _pumpQueue();
     }
+  }
+
+  /// Translate generic exceptions to Arabic messages that match the UI.
+  String _translateError(dynamic e) {
+    final s = e.toString();
+    if (s.contains('403') || s.contains('Forbidden')) {
+      return 'الخادم رفض الطلب (403). قد يكون الرابط منتهي الصلاحية.';
+    }
+    if (s.contains('404') || s.contains('Not Found')) {
+      return 'الملف غير موجود (404)';
+    }
+    if (s.contains('SocketException') || s.contains('Connection refused')) {
+      return 'تعذر الاتصال بالإنترنت';
+    }
+    if (s.contains('HandshakeException') || s.contains('TLS')) {
+      return 'فشل التحقق من شهادة SSL';
+    }
+    if (s.length > 100) {
+      return 'فشل غير متوقع: ${s.substring(0, 100)}';
+    }
+    return s;
   }
 
   String _dioError(DioException e) {
